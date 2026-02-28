@@ -1,14 +1,23 @@
 const suits = ["♣", "♥", "♠", "♦"];
 const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
+const redSuits = new Set(["♥", "♦"]);
+
+
 const state = {
   deck: [],
   index: 0,
   gameOver: false,
+
+  isAnimating: false,
+
 };
 
 const el = {
   card: document.getElementById("card"),
+
+  front: document.querySelector(".front"),
+
   rank: document.getElementById("card-rank"),
   suit: document.getElementById("card-suit"),
   cardText: document.getElementById("card-text"),
@@ -58,16 +67,29 @@ function setButtonsEnabled(enabled) {
   });
 }
 
+
+function updateFrontColor(suit) {
+  const isRedSuit = redSuits.has(suit);
+  el.front.classList.toggle("red-suit", isRedSuit);
+}
+
 function revealCard(card) {
   el.rank.textContent = card.rank;
   el.suit.textContent = card.suit;
-  el.card.classList.remove("face-down");
+  updateFrontColor(card.suit);
+  el.card.classList.remove("face-down", "discarding");
+
   el.card.classList.add("revealed");
 }
 
 function hideCard() {
-  el.card.classList.remove("revealed", "shake", "win-glow");
+
+  el.card.classList.remove("revealed", "shake", "win-glow", "discarding");
   el.card.classList.add("face-down", "pulse");
+  el.rank.textContent = "?";
+  el.suit.textContent = "♠";
+  el.front.classList.remove("red-suit");
+
   el.cardText.textContent = "Face-down card waiting...";
 }
 
@@ -101,6 +123,9 @@ function lose(card, guessed) {
   setResult("You Lose", "bad");
   el.cardText.textContent = `You guessed ${guessed}. Card was ${card.rank} of ${card.suit}.`;
   spawnParticles("#ff5d70");
+
+  state.isAnimating = false;
+
 }
 
 function win() {
@@ -111,14 +136,37 @@ function win() {
   setResult("You Win!", "good");
   el.cardText.textContent = "Incredible! You survived all 52 cards.";
   spawnParticles("#35d07f");
+  state.isAnimating = false;
+}
+
+function runSafeDiscardAnimation(guessed) {
+  state.isAnimating = true;
+  setButtonsEnabled(false);
+  setResult("Safe guess", "good");
+  el.card.classList.remove("pulse", "revealed", "shake", "win-glow");
+  el.card.classList.add("face-down", "discarding");
+  el.cardText.textContent = `Safe! ${guessed} was not the card value.`;
+
+  setTimeout(() => {
+    state.index += 1;
+    updateStats();
+
+    if (state.index >= 52) {
+      win();
+      return;
+    }
+
+    hideCard();
+    setResult("Make your guess", "neutral");
+    setButtonsEnabled(true);
+    state.isAnimating = false;
+  }, 560);
 }
 
 function handleGuess(guess) {
-  if (state.gameOver) return;
+  if (state.gameOver || state.isAnimating) return;
 
   const card = state.deck[state.index];
-  revealCard(card);
-  el.card.classList.remove("pulse");
 
   if (guess === card.rank) {
     lose(card, guess);
@@ -126,28 +174,14 @@ function handleGuess(guess) {
     return;
   }
 
-  state.index += 1;
-  setResult("Safe guess", "good");
-  el.cardText.textContent = `Nice! ${guess} did not match ${card.rank} of ${card.suit}.`;
-  updateStats();
-
-  if (state.index >= 52) {
-    win();
-    return;
-  }
-
-  setTimeout(() => {
-    if (!state.gameOver) {
-      hideCard();
-      setResult("Make your guess", "neutral");
-    }
-  }, 700);
+  runSafeDiscardAnimation(guess);
 }
 
 function newGame() {
   state.deck = buildDeck();
   state.index = 0;
   state.gameOver = false;
+  state.isAnimating = false;
   hideCard();
   setButtonsEnabled(true);
   setResult("Make your guess", "neutral");
