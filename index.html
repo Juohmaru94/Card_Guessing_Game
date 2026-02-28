@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Guessing Game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="background"></div>
+  <main class="game-shell">
+    <header>
+      <h1>Card Guessing Game</h1>
+      <p class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
+    </header>
+
+    <section class="status-panel">
+      <div class="stat">
+        <span class="label">Cards Remaining</span>
+        <span id="remaining" class="value">52</span>
+      </div>
+      <div class="stat">
+        <span class="label">Round</span>
+        <span id="round" class="value">1 / 52</span>
+      </div>
+      <div class="stat">
+        <span class="label">Result</span>
+        <span id="result" class="value neutral">Make your guess</span>
+      </div>
+    </section>
+
+    <section class="table-area">
+      <div id="card" class="card face-down" aria-live="polite">
+        <div class="card-face front">
+          <span id="card-rank">?</span>
+          <span id="card-suit">♠</span>
+        </div>
+        <div class="card-face back" aria-hidden="true">
+          <div class="back-border"></div>
+          <div class="slime slime-top"></div>
+          <div class="slime slime-bottom"></div>
+          <div class="back-gem"></div>
+        </div>
+      </div>
+      <p id="card-text" class="card-text">Face-down card waiting...</p>
+    </section>
+
+    <section>
+      <h2>Pick a value</h2>
+      <div id="guess-grid" class="guess-grid" role="group" aria-label="Card value choices"></div>
+    </section>
+
+    <div class="controls">
+      <button id="restart" class="btn">New Game</button>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
