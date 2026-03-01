@@ -124,7 +124,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 .back {
   width: 210px;
   height: 294px;
-  background-image: url('images/backcard.png');
+  background-image: url('back_images/backcard.png');
   background-size: cover;
   background-position: center;
   border-radius: 10px; /* optional */
