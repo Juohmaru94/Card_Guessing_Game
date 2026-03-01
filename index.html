@@ -12,9 +12,12 @@
 <body>
   <div class="background"></div>
   <main class="game-shell">
-    <header>
-      <h1>Card Guessing Game</h1>
-      <p class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
+    <header class="top-bar">
+      <div>
+        <h1>Card Guessing Game</h1>
+        <p class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
+      </div>
+      <button id="mute-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Mute sound effects">🔊 Sound On</button>
     </header>
 
     <section class="status-panel">
@@ -36,7 +39,10 @@
       <div id="card" class="card face-down" aria-live="polite">
         <div class="card-face front">
           <span id="card-rank">?</span>
-          <span id="card-suit">♠</span>
+          <span class="card-suit top-left" data-card-suit>♠</span>
+          <span class="card-suit top-right" data-card-suit>♠</span>
+          <span class="card-suit bottom-left" data-card-suit>♠</span>
+          <span class="card-suit bottom-right" data-card-suit>♠</span>
         </div>
 
         <div class="card-face back" aria-hidden="true">
@@ -53,7 +59,7 @@
     </section>
 
     <div class="controls">
-      <button id="restart" class="btn">New Game</button>
+      <button id="restart" class="btn new-game-btn">New Game</button>
     </div>
   </main>
 
