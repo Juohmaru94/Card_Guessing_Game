@@ -7,6 +7,7 @@
   --good: #35d07f;
   --bad: #ff5d70;
   --neutral: #8ab5ff;
+  --card-back-image: url('back_images/backcard.png');
 }
 
 * { box-sizing: border-box; }
@@ -20,6 +21,12 @@ body {
   place-items: center;
   background: radial-gradient(circle at 20% 15%, #25396f 0%, var(--bg) 45%, #070b16 100%);
   overflow-x: hidden;
+}
+
+body.modal-open .game-shell {
+  filter: blur(7px);
+  pointer-events: none;
+  user-select: none;
 }
 
 .background {
@@ -47,6 +54,12 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+}
+
+.top-bar-actions {
+  display: flex;
+  gap: .55rem;
+  align-items: center;
 }
 
 h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
@@ -124,7 +137,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 .back {
   width: 210px;
   height: 294px;
-  background-image: url('back_images/backcard.png');
+  background-image: var(--card-back-image);
   background-size: cover;
   background-position: center;
   border-radius: 10px; /* optional */
@@ -132,6 +145,16 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 
 .card.face-down { transform: rotateY(0deg); }
 .card.revealed { transform: rotateY(180deg); }
+
+.card.lose-flip {
+  transform-origin: left center;
+  animation: loseFlip .4s ease forwards;
+}
+
+@keyframes loseFlip {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
+}
 
 .card.pulse { animation: pulse 1.2s infinite; }
 @keyframes pulse {
@@ -193,6 +216,11 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   padding-inline: .9rem;
 }
 
+.icon-btn {
+  min-width: 44px;
+  padding-inline: .7rem;
+}
+
 .mute-btn[aria-pressed="true"] {
   opacity: .8;
 }
@@ -217,6 +245,57 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   z-index: 20;
 }
 
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 11, 22, 0.35);
+  backdrop-filter: blur(4px);
+}
+
+.settings-modal {
+  width: min(420px, 92vw);
+  border-radius: 16px;
+  padding: 1rem;
+  background: rgba(18, 28, 58, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+}
+
+.settings-header h2 {
+  margin: 0;
+}
+
+.settings-content {
+  margin-top: 1rem;
+  display: grid;
+  gap: .55rem;
+}
+
+.settings-content label {
+  color: #d9e2ff;
+  font-size: .95rem;
+  font-weight: 600;
+}
+
+.settings-content select {
+  border: 2px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  border-radius: 10px;
+  padding: .6rem .65rem;
+  font-size: .95rem;
+}
+
 @keyframes fly {
   to {
     transform: translate(var(--tx), var(--ty)) scale(0.2);
@@ -232,6 +311,10 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 
   .mute-btn {
     align-self: flex-end;
+  }
+
+  .top-bar-actions {
+    justify-content: flex-end;
   }
 
   .status-panel { grid-template-columns: 1fr; }

@@ -17,7 +17,10 @@
         <h1>Card Guessing Game</h1>
         <p class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
       </div>
-      <button id="mute-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Mute sound effects">🔊 Sound On</button>
+      <div class="top-bar-actions">
+        <button id="settings-toggle" class="btn icon-btn" type="button" aria-label="Open settings">⚙️</button>
+        <button id="mute-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Mute sound effects">🔊 Sound On</button>
+      </div>
     </header>
 
     <section class="status-panel">
@@ -62,6 +65,19 @@
       <button id="restart" class="btn new-game-btn">New Game</button>
     </div>
   </main>
+
+  <div id="settings-overlay" class="settings-overlay" hidden>
+    <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-header">
+        <h2 id="settings-title">Settings</h2>
+        <button id="settings-close" class="btn icon-btn" type="button" aria-label="Close settings">✕</button>
+      </div>
+      <div class="settings-content">
+        <label for="card-design-select">Card Design</label>
+        <select id="card-design-select"></select>
+      </div>
+    </section>
+  </div>
 
   <script src="app.js"></script>
 </body>

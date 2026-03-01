@@ -2,26 +2,28 @@ const suits = ["♣", "♥", "♠", "♦"];
 const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
 const redSuits = new Set(["♥", "♦"]);
-
+const loseFlipDurationMs = 400;
+const cardDesigns = [
+  { label: "Classic Red", file: "back_images/backcard.png" },
+  { label: "Classic Blue", file: "back_images/backcard2.png" },
+];
 
 const state = {
   deck: [],
   index: 0,
   gameOver: false,
-
   isAnimating: false,
   discardTimer: null,
   sessionId: 0,
   muted: false,
   hasStarted: false,
-
+  settingsOpen: false,
+  selectedCardBack: cardDesigns[0].file,
 };
 
 const el = {
   card: document.getElementById("card"),
-
   front: document.querySelector(".front"),
-
   rank: document.getElementById("card-rank"),
   suits: [...document.querySelectorAll("[data-card-suit]")],
   cardText: document.getElementById("card-text"),
@@ -31,6 +33,10 @@ const el = {
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
   muteToggle: document.getElementById("mute-toggle"),
+  settingsToggle: document.getElementById("settings-toggle"),
+  settingsOverlay: document.getElementById("settings-overlay"),
+  settingsClose: document.getElementById("settings-close"),
+  cardDesignSelect: document.getElementById("card-design-select"),
 };
 
 const sounds = {
@@ -72,6 +78,29 @@ function makeButtons() {
   });
 }
 
+function setupCardDesignOptions() {
+  el.cardDesignSelect.innerHTML = "";
+  cardDesigns.forEach((design) => {
+    const option = document.createElement("option");
+    option.value = design.file;
+    option.textContent = design.label;
+    el.cardDesignSelect.appendChild(option);
+  });
+  el.cardDesignSelect.value = state.selectedCardBack;
+  applyCardBackDesign(state.selectedCardBack);
+}
+
+function applyCardBackDesign(cardImagePath) {
+  state.selectedCardBack = cardImagePath;
+  document.documentElement.style.setProperty("--card-back-image", `url('${cardImagePath}')`);
+}
+
+function setSettingsOpen(open) {
+  state.settingsOpen = open;
+  el.settingsOverlay.hidden = !open;
+  document.body.classList.toggle("modal-open", open);
+}
+
 function setResult(message, type = "neutral") {
   el.result.textContent = message;
   el.result.className = `value ${type}`;
@@ -98,33 +127,33 @@ function updateMuteButton() {
   el.muteToggle.setAttribute("aria-pressed", String(state.muted));
 }
 
-
 function updateFrontColor(suit) {
   const isRedSuit = redSuits.has(suit);
   el.front.classList.toggle("red-suit", isRedSuit);
 }
 
-function revealCard(card) {
+function setRevealedCardContent(card) {
   el.rank.textContent = card.rank;
   el.suits.forEach((suit) => {
     suit.textContent = card.suit;
   });
   updateFrontColor(card.suit);
-  el.card.classList.remove("face-down", "discarding");
+}
 
+function revealCard(card) {
+  setRevealedCardContent(card);
+  el.card.classList.remove("face-down", "discarding", "lose-flip");
   el.card.classList.add("revealed");
 }
 
 function hideCard() {
-
-  el.card.classList.remove("revealed", "shake", "win-glow", "discarding");
+  el.card.classList.remove("revealed", "shake", "win-glow", "discarding", "lose-flip");
   el.card.classList.add("face-down", "pulse");
   el.rank.textContent = "?";
   el.suits.forEach((suit) => {
     suit.textContent = "♠";
   });
   el.front.classList.remove("red-suit");
-
   el.cardText.textContent = "Face-down card waiting...";
 }
 
@@ -151,17 +180,36 @@ function spawnParticles(color) {
 
 function lose(card, guessed) {
   state.gameOver = true;
-  revealCard(card);
-  el.card.classList.remove("pulse");
-  el.card.classList.add("shake");
+  state.isAnimating = true;
+
   setButtonsEnabled(false);
   setResult("You Lose", "bad");
   el.cardText.textContent = `You guessed ${guessed}. Card was ${card.rank} of ${card.suit}.`;
   spawnParticles("#ff5d70");
-  playSound("lose");
 
-  state.isAnimating = false;
+  setRevealedCardContent(card);
+  el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow");
+  el.card.classList.add("face-down", "lose-flip");
 
+  const onFlipEnd = (event) => {
+    if (event.animationName !== "loseFlip") return;
+    el.card.removeEventListener("animationend", onFlipEnd);
+    el.card.classList.remove("lose-flip");
+    el.card.classList.add("revealed");
+    playSound("lose");
+    state.isAnimating = false;
+  };
+
+  el.card.addEventListener("animationend", onFlipEnd);
+
+  setTimeout(() => {
+    if (!state.isAnimating) return;
+    el.card.removeEventListener("animationend", onFlipEnd);
+    el.card.classList.remove("lose-flip");
+    el.card.classList.add("revealed");
+    playSound("lose");
+    state.isAnimating = false;
+  }, loseFlipDurationMs + 40);
 }
 
 function win() {
@@ -188,7 +236,7 @@ function runSafeDiscardAnimation(guessed) {
   state.isAnimating = true;
   setButtonsEnabled(false);
   setResult("Safe guess", "good");
-  el.card.classList.remove("pulse", "revealed", "shake", "win-glow");
+  el.card.classList.remove("pulse", "revealed", "shake", "win-glow", "lose-flip");
   el.card.classList.add("face-down", "discarding");
   el.cardText.textContent = `Safe! ${guessed} was not the card value.`;
   playSound("safe");
@@ -215,7 +263,7 @@ function runSafeDiscardAnimation(guessed) {
 }
 
 function handleGuess(guess) {
-  if (state.gameOver || state.isAnimating) return;
+  if (state.gameOver || state.isAnimating || state.settingsOpen) return;
 
   const card = state.deck[state.index];
 
@@ -247,10 +295,31 @@ function newGame() {
 }
 
 makeButtons();
+setupCardDesignOptions();
 updateMuteButton();
+
 el.muteToggle.addEventListener("click", () => {
   state.muted = !state.muted;
   updateMuteButton();
 });
+
+el.settingsToggle.addEventListener("click", () => {
+  setSettingsOpen(true);
+});
+
+el.settingsClose.addEventListener("click", () => {
+  setSettingsOpen(false);
+});
+
+el.settingsOverlay.addEventListener("click", (event) => {
+  if (event.target === el.settingsOverlay) {
+    setSettingsOpen(false);
+  }
+});
+
+el.cardDesignSelect.addEventListener("change", (event) => {
+  applyCardBackDesign(event.target.value);
+});
+
 el.restart.addEventListener("click", newGame);
 newGame();
