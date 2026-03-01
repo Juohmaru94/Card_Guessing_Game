@@ -108,11 +108,11 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
   color: #d11841;
 }
 
-#card-rank { font-size: 2.4rem; }
+#card-rank { font-size: 3.2rem; }
 
 .card-suit {
   position: absolute;
-  font-size: 1.5rem;
+  font-size: 2.1rem;
   line-height: 1;
 }
 
@@ -173,14 +173,14 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 .guess-btn, .btn {
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 2px solid rgba(255,255,255,0.24);
   background: var(--surface);
   color: var(--text);
   border-radius: 12px;
   font-weight: 700;
   padding: .7rem .6rem;
   cursor: pointer;
-  transition: transform .13s ease, background .2s ease;
+  transition: transform .3s ease, background .2s ease;
 }
 
 .guess-btn:hover, .btn:hover { transform: translateY(-2px); background: var(--surface-strong); }
