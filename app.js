@@ -12,6 +12,8 @@ const state = {
   isAnimating: false,
   discardTimer: null,
   sessionId: 0,
+  muted: false,
+  hasStarted: false,
 
 };
 
@@ -21,14 +23,26 @@ const el = {
   front: document.querySelector(".front"),
 
   rank: document.getElementById("card-rank"),
-  suit: document.getElementById("card-suit"),
+  suits: [...document.querySelectorAll("[data-card-suit]")],
   cardText: document.getElementById("card-text"),
   remaining: document.getElementById("remaining"),
   round: document.getElementById("round"),
   result: document.getElementById("result"),
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
+  muteToggle: document.getElementById("mute-toggle"),
 };
+
+const sounds = {
+  safe: new Audio("Sounds/safe_guess_sound.mp3"),
+  lose: new Audio("Sounds/lose_sound.mp3"),
+  win: new Audio("Sounds/Winning_sound.mp3"),
+  newGame: new Audio("Sounds/new_game_sound.mp3"),
+};
+
+Object.values(sounds).forEach((sound) => {
+  sound.preload = "auto";
+});
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i -= 1) {
@@ -69,6 +83,21 @@ function setButtonsEnabled(enabled) {
   });
 }
 
+function playSound(name) {
+  if (state.muted) return;
+
+  const sound = sounds[name];
+  if (!sound) return;
+
+  sound.currentTime = 0;
+  sound.play().catch(() => {});
+}
+
+function updateMuteButton() {
+  el.muteToggle.textContent = state.muted ? "🔇 Sound Off" : "🔊 Sound On";
+  el.muteToggle.setAttribute("aria-pressed", String(state.muted));
+}
+
 
 function updateFrontColor(suit) {
   const isRedSuit = redSuits.has(suit);
@@ -77,7 +106,9 @@ function updateFrontColor(suit) {
 
 function revealCard(card) {
   el.rank.textContent = card.rank;
-  el.suit.textContent = card.suit;
+  el.suits.forEach((suit) => {
+    suit.textContent = card.suit;
+  });
   updateFrontColor(card.suit);
   el.card.classList.remove("face-down", "discarding");
 
@@ -89,7 +120,9 @@ function hideCard() {
   el.card.classList.remove("revealed", "shake", "win-glow", "discarding");
   el.card.classList.add("face-down", "pulse");
   el.rank.textContent = "?";
-  el.suit.textContent = "♠";
+  el.suits.forEach((suit) => {
+    suit.textContent = "♠";
+  });
   el.front.classList.remove("red-suit");
 
   el.cardText.textContent = "Face-down card waiting...";
@@ -125,6 +158,7 @@ function lose(card, guessed) {
   setResult("You Lose", "bad");
   el.cardText.textContent = `You guessed ${guessed}. Card was ${card.rank} of ${card.suit}.`;
   spawnParticles("#ff5d70");
+  playSound("lose");
 
   state.isAnimating = false;
 
@@ -138,6 +172,7 @@ function win() {
   setResult("You Win!", "good");
   el.cardText.textContent = "Incredible! You survived all 52 cards.";
   spawnParticles("#35d07f");
+  playSound("win");
   state.isAnimating = false;
 }
 
@@ -156,6 +191,7 @@ function runSafeDiscardAnimation(guessed) {
   el.card.classList.remove("pulse", "revealed", "shake", "win-glow");
   el.card.classList.add("face-down", "discarding");
   el.cardText.textContent = `Safe! ${guessed} was not the card value.`;
+  playSound("safe");
   const animationSessionId = state.sessionId;
 
   state.discardTimer = setTimeout(() => {
@@ -195,6 +231,10 @@ function handleGuess(guess) {
 function newGame() {
   clearDiscardTimer();
   state.sessionId += 1;
+
+  if (state.hasStarted) {
+    playSound("newGame");
+  }
   state.deck = buildDeck();
   state.index = 0;
   state.gameOver = false;
@@ -203,8 +243,14 @@ function newGame() {
   setButtonsEnabled(true);
   setResult("Make your guess", "neutral");
   updateStats();
+  state.hasStarted = true;
 }
 
 makeButtons();
+updateMuteButton();
+el.muteToggle.addEventListener("click", () => {
+  state.muted = !state.muted;
+  updateMuteButton();
+});
 el.restart.addEventListener("click", newGame);
 newGame();
