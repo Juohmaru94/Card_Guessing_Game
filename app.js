@@ -10,6 +10,8 @@ const state = {
   gameOver: false,
 
   isAnimating: false,
+  discardTimer: null,
+  sessionId: 0,
 
 };
 
@@ -130,7 +132,7 @@ function lose(card, guessed) {
 
 function win() {
   state.gameOver = true;
-  el.card.classList.remove("pulse");
+  el.card.classList.remove("pulse", "discarding");
   el.card.classList.add("win-glow");
   setButtonsEnabled(false);
   setResult("You Win!", "good");
@@ -139,19 +141,32 @@ function win() {
   state.isAnimating = false;
 }
 
+function clearDiscardTimer() {
+  if (state.discardTimer !== null) {
+    clearTimeout(state.discardTimer);
+    state.discardTimer = null;
+  }
+}
+
 function runSafeDiscardAnimation(guessed) {
+  clearDiscardTimer();
   state.isAnimating = true;
   setButtonsEnabled(false);
   setResult("Safe guess", "good");
   el.card.classList.remove("pulse", "revealed", "shake", "win-glow");
   el.card.classList.add("face-down", "discarding");
   el.cardText.textContent = `Safe! ${guessed} was not the card value.`;
+  const animationSessionId = state.sessionId;
 
-  setTimeout(() => {
+  state.discardTimer = setTimeout(() => {
+    if (animationSessionId !== state.sessionId) return;
+
+    state.discardTimer = null;
     state.index += 1;
     updateStats();
 
     if (state.index >= 52) {
+      el.card.classList.remove("discarding");
       win();
       return;
     }
@@ -178,6 +193,8 @@ function handleGuess(guess) {
 }
 
 function newGame() {
+  clearDiscardTimer();
+  state.sessionId += 1;
   state.deck = buildDeck();
   state.index = 0;
   state.gameOver = false;
