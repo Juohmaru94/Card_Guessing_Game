@@ -150,17 +150,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 
 .card.face-down { transform: rotateY(0deg); }
 .card.revealed { transform: rotateY(180deg); }
-/*
-.card.lose-flip {
-  transform-origin: left center;
-  animation: loseFlip .4s ease forwards;
-}
 
-@keyframes loseFlip {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(180deg); }
-}
-*/
 .card.pulse { animation: pulse 1.2s infinite; }
 @keyframes pulse {
   0%,100% { filter: drop-shadow(0 0 0 rgba(53,208,127,0)); }
