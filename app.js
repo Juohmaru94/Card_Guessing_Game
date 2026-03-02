@@ -3,9 +3,10 @@ const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 
 const redSuits = new Set(["♥", "♦"]);
 const loseFlipDurationMs = 400;
+const loseFlipSoundDelayMs = 440;
 const cardDesigns = [
-  { label: "Classic Red", file: "back_images/backcard.png" },
-  { label: "Classic Blue", file: "back_images/backcard2.png" },
+  { label: "Slime", file: "back_images/backcard.png" },
+  { label: "Blood Daggers", file: "back_images/backcard2.png" },
 ];
 
 const state = {
@@ -14,6 +15,7 @@ const state = {
   gameOver: false,
   isAnimating: false,
   discardTimer: null,
+  loseTimer: null,
   sessionId: 0,
   muted: false,
   hasStarted: false,
@@ -178,7 +180,16 @@ function spawnParticles(color) {
   }
 }
 
+function clearLoseTimer() {
+  if (state.loseTimer !== null) {
+    clearTimeout(state.loseTimer);
+    state.loseTimer = null;
+  }
+}
+
 function lose(card, guessed) {
+  clearLoseTimer();
+
   state.gameOver = true;
   state.isAnimating = true;
 
@@ -191,25 +202,16 @@ function lose(card, guessed) {
   el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow");
   el.card.classList.add("face-down", "lose-flip");
 
-  const onFlipEnd = (event) => {
-    if (event.animationName !== "loseFlip") return;
-    el.card.removeEventListener("animationend", onFlipEnd);
+  const loseSessionId = state.sessionId;
+  state.loseTimer = setTimeout(() => {
+    if (loseSessionId !== state.sessionId) return;
+
+    state.loseTimer = null;
     el.card.classList.remove("lose-flip");
     el.card.classList.add("revealed");
     playSound("lose");
     state.isAnimating = false;
-  };
-
-  el.card.addEventListener("animationend", onFlipEnd);
-
-  setTimeout(() => {
-    if (!state.isAnimating) return;
-    el.card.removeEventListener("animationend", onFlipEnd);
-    el.card.classList.remove("lose-flip");
-    el.card.classList.add("revealed");
-    playSound("lose");
-    state.isAnimating = false;
-  }, loseFlipDurationMs + 40);
+  }, loseFlipSoundDelayMs);
 }
 
 function win() {
@@ -278,6 +280,7 @@ function handleGuess(guess) {
 
 function newGame() {
   clearDiscardTimer();
+  clearLoseTimer();
   state.sessionId += 1;
 
   if (state.hasStarted) {
@@ -297,6 +300,7 @@ function newGame() {
 makeButtons();
 setupCardDesignOptions();
 updateMuteButton();
+setSettingsOpen(false);
 
 el.muteToggle.addEventListener("click", () => {
   state.muted = !state.muted;

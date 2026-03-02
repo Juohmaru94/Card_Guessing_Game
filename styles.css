@@ -245,6 +245,11 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   z-index: 20;
 }
 
+
+.settings-overlay[hidden] {
+  display: none !important;
+}
+
 .settings-overlay {
   position: fixed;
   inset: 0;
@@ -288,12 +293,23 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 .settings-content select {
-  border: 2px solid rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.08);
-  color: var(--text);
+  border: 1px solid rgba(215, 226, 255, 0.42);
+  background: linear-gradient(145deg, rgba(196, 205, 230, 0.38), rgba(62, 78, 126, 0.92));
+  color: #f4f7ff;
   border-radius: 10px;
   padding: .6rem .65rem;
   font-size: .95rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+
+.settings-content select:focus {
+  outline: 2px solid rgba(138, 181, 255, 0.75);
+  outline-offset: 2px;
+}
+
+.settings-content select option {
+  color: #e8efff;
+  background: #1a2648;
 }
 
 @keyframes fly {
