@@ -148,6 +148,10 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
   transform-style: preserve-3d;
 }
 
+.card.instant-reset {
+  transition: none !important;
+}
+
 .card.face-down { transform: rotateY(0deg); }
 .card.revealed { transform: rotateY(180deg); }
 
@@ -253,6 +257,11 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   place-items: center;
   background: rgba(7, 11, 22, 0.35);
   backdrop-filter: blur(4px);
+  animation: settingsFadeIn 280ms cubic-bezier(.22,.61,.36,1) forwards;
+}
+
+.settings-overlay.is-closing {
+  animation: settingsFadeOut 220ms cubic-bezier(.65,.05,.36,1) forwards;
 }
 
 .settings-modal {
@@ -262,6 +271,11 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   background: rgba(18, 28, 58, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  animation: settingsPopIn 300ms cubic-bezier(.2,.85,.25,1) forwards;
+}
+
+.settings-overlay.is-closing .settings-modal {
+  animation: settingsPopOut 220ms cubic-bezier(.65,.05,.36,1) forwards;
 }
 
 .settings-header {
@@ -287,24 +301,53 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   font-weight: 600;
 }
 
-.settings-content select {
-  border: 1px solid rgba(215, 226, 255, 0.42);
-  background: linear-gradient(145deg, rgba(196, 205, 230, 0.38), rgba(62, 78, 126, 0.92));
-  color: #f4f7ff;
-  border-radius: 10px;
-  padding: .6rem .65rem;
+.settings-label {
+  color: #d9e2ff;
   font-size: .95rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 18px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
 }
 
-.settings-content select:focus {
-  outline: 2px solid rgba(138, 181, 255, 0.75);
-  outline-offset: 2px;
+.card-design-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .6rem;
 }
 
-.settings-content select option {
-  color: #e8efff;
-  background: #1a2648;
+.card-design-option {
+  border: 1px solid rgba(215, 226, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(18, 28, 58, 0.6);
+  color: #f4f7ff;
+  padding: .55rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+
+.card-design-option:hover {
+  transform: translateY(-2px);
+  border-color: rgba(164, 193, 255, 0.9);
+}
+
+.card-design-option.selected {
+  border-color: rgba(138, 181, 255, 0.95);
+  box-shadow: 0 0 0 2px rgba(138, 181, 255, 0.3);
+}
+
+.card-design-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.card-design-name {
+  display: block;
+  margin-top: .45rem;
+  font-weight: 700;
 }
 
 @keyframes fly {
@@ -312,6 +355,26 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
     transform: translate(var(--tx), var(--ty)) scale(0.2);
     opacity: 0;
   }
+}
+
+@keyframes settingsFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes settingsFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes settingsPopIn {
+  from { opacity: 0; transform: translateY(20px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes settingsPopOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(16px) scale(.97); }
 }
 
 @media (max-width: 720px) {

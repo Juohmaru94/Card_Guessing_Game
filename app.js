@@ -20,6 +20,8 @@ const state = {
   muted: false,
   hasStarted: false,
   settingsOpen: false,
+  settingsClosing: false,
+  lastOutcome: null,
   selectedCardBack: cardDesigns[0].file,
 };
 
@@ -38,7 +40,7 @@ const el = {
   settingsToggle: document.getElementById("settings-toggle"),
   settingsOverlay: document.getElementById("settings-overlay"),
   settingsClose: document.getElementById("settings-close"),
-  cardDesignSelect: document.getElementById("card-design-select"),
+  cardDesignOptions: document.getElementById("card-design-options"),
 };
 
 const sounds = {
@@ -81,26 +83,55 @@ function makeButtons() {
 }
 
 function setupCardDesignOptions() {
-  el.cardDesignSelect.innerHTML = "";
+  el.cardDesignOptions.innerHTML = "";
   cardDesigns.forEach((design) => {
-    const option = document.createElement("option");
-    option.value = design.file;
-    option.textContent = design.label;
-    el.cardDesignSelect.appendChild(option);
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "card-design-option";
+    option.dataset.file = design.file;
+    option.setAttribute("role", "radio");
+    option.setAttribute("aria-checked", "false");
+    option.innerHTML = `
+      <span class="card-design-preview" style="background-image: url('${design.file}')"></span>
+      <span class="card-design-name">${design.label}</span>
+    `;
+    option.addEventListener("click", () => applyCardBackDesign(design.file));
+    el.cardDesignOptions.appendChild(option);
   });
-  el.cardDesignSelect.value = state.selectedCardBack;
   applyCardBackDesign(state.selectedCardBack);
 }
 
 function applyCardBackDesign(cardImagePath) {
   state.selectedCardBack = cardImagePath;
   document.documentElement.style.setProperty("--card-back-image", `url('${cardImagePath}')`);
+
+  [...el.cardDesignOptions.querySelectorAll(".card-design-option")].forEach((option) => {
+    const isSelected = option.dataset.file === cardImagePath;
+    option.classList.toggle("selected", isSelected);
+    option.setAttribute("aria-checked", String(isSelected));
+  });
 }
 
 function setSettingsOpen(open) {
-  state.settingsOpen = open;
-  el.settingsOverlay.hidden = !open;
+  if (open) {
+    state.settingsOpen = true;
+    state.settingsClosing = false;
+    el.settingsOverlay.hidden = false;
+    el.settingsOverlay.classList.remove("is-closing");
+  } else if (state.settingsOpen) {
+    state.settingsClosing = true;
+    el.settingsOverlay.classList.add("is-closing");
+  }
+
   document.body.classList.toggle("modal-open", open);
+}
+
+function finishSettingsCloseAnimation() {
+  if (!state.settingsClosing) return;
+  state.settingsClosing = false;
+  state.settingsOpen = false;
+  el.settingsOverlay.classList.remove("is-closing");
+  el.settingsOverlay.hidden = true;
 }
 
 function setResult(message, type = "neutral") {
@@ -192,6 +223,7 @@ function lose(card, guessed) {
 
   state.gameOver = true;
   state.isAnimating = true;
+  state.lastOutcome = "lose";
 
   setButtonsEnabled(false);
   setResult("You Lose", "bad");
@@ -216,6 +248,7 @@ function lose(card, guessed) {
 
 function win() {
   state.gameOver = true;
+  state.lastOutcome = "win";
   el.card.classList.remove("pulse", "discarding");
   el.card.classList.add("win-glow");
   setButtonsEnabled(false);
@@ -290,10 +323,19 @@ function newGame() {
   state.index = 0;
   state.gameOver = false;
   state.isAnimating = false;
+
+  if (state.lastOutcome === "lose") {
+    el.card.classList.add("instant-reset");
+  }
+
   hideCard();
+  requestAnimationFrame(() => {
+    el.card.classList.remove("instant-reset");
+  });
   setButtonsEnabled(true);
   setResult("Make your guess", "neutral");
   updateStats();
+  state.lastOutcome = null;
   state.hasStarted = true;
 }
 
@@ -321,8 +363,10 @@ el.settingsOverlay.addEventListener("click", (event) => {
   }
 });
 
-el.cardDesignSelect.addEventListener("change", (event) => {
-  applyCardBackDesign(event.target.value);
+el.settingsOverlay.addEventListener("animationend", (event) => {
+  if (event.target === el.settingsOverlay && event.animationName === "settingsFadeOut") {
+    finishSettingsCloseAnimation();
+  }
 });
 
 el.restart.addEventListener("click", newGame);
