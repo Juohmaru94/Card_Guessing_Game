@@ -175,12 +175,12 @@ function setRevealedCardContent(card) {
 
 function revealCard(card) {
   setRevealedCardContent(card);
-  el.card.classList.remove("face-down", "discarding", "lose-flip", "show-next-card");
+  el.card.classList.remove("face-down", "discarding", "lose-flip", "show-next-card", "show-front-face");
   el.card.classList.add("revealed");
 }
 
 function hideCard() {
-  el.card.classList.remove("revealed", "shake", "win-glow", "discarding", "lose-flip", "show-next-card");
+  el.card.classList.remove("revealed", "shake", "win-glow", "discarding", "lose-flip", "show-next-card", "show-front-face");
   el.card.classList.add("face-down", "pulse");
   el.rank.textContent = "?";
   el.suits.forEach((suit) => {
@@ -231,7 +231,7 @@ function lose(card, guessed) {
   spawnParticles("#ff5d70");
 
   setRevealedCardContent(card);
-  el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow", "show-next-card");
+  el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow", "show-next-card", "show-front-face");
   el.card.classList.add("face-down", "lose-flip");
 
   const loseSessionId = state.sessionId;
@@ -239,8 +239,8 @@ function lose(card, guessed) {
     if (loseSessionId !== state.sessionId) return;
 
     state.loseTimer = null;
-    el.card.classList.remove("lose-flip");
-    el.card.classList.add("revealed");
+    el.card.classList.remove("lose-flip", "face-down");
+    el.card.classList.add("show-front-face");
     playSound("lose");
     state.isAnimating = false;
   }, loseFlipSoundDelayMs);
@@ -249,7 +249,7 @@ function lose(card, guessed) {
 function win() {
   state.gameOver = true;
   state.lastOutcome = "win";
-  el.card.classList.remove("pulse", "discarding", "show-next-card");
+  el.card.classList.remove("pulse", "discarding", "show-next-card", "show-front-face");
   el.card.classList.add("win-glow");
   setButtonsEnabled(false);
   setResult("You Win!", "good");
