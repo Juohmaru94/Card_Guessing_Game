@@ -98,6 +98,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
   aspect-ratio: 5/7;
   transform-style: preserve-3d;
   transition: transform .65s cubic-bezier(.2,.8,.2,1), filter .25s;
+  isolation: isolate;
 }
 
 .card::before {
@@ -114,7 +115,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
   opacity: 0;
   transition: opacity .12s ease;
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
 }
 
 .card.show-next-card.discarding::before {
@@ -131,6 +132,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
   place-items: center;
   font-weight: 800;
   border: 1px solid rgba(255,255,255,0.2);
+  z-index: 1;
 }
 
 .front {
@@ -198,13 +200,13 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 
 .card-text { margin: 0; color: #d3dcff; text-align: center; }
 
-.card.discarding {
-  animation: discard 540ms ease-in forwards;
+.card.discarding .back {
+  animation: discardTopCard 540ms ease-in forwards;
 }
 
-@keyframes discard {
-  0% { transform: rotateY(0deg) translate(0, 0) scale(1); opacity: 1; }
-  100% { transform: rotateY(0deg) translate(150px, -18px) scale(0.88); opacity: 0.05; }
+@keyframes discardTopCard {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(150px, -18px) scale(0.88); opacity: 0.05; }
 }
 
 h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
@@ -362,6 +364,7 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   background-position: center;
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.2);
+  z-index: 1;
 }
 
 .card-design-name {
