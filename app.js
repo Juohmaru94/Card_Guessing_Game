@@ -21,6 +21,7 @@ const state = {
   hasStarted: false,
   settingsOpen: false,
   settingsClosing: false,
+  cardDesignSectionOpen: false,
   lastOutcome: null,
   selectedCardBack: cardDesigns[0].file,
 };
@@ -40,6 +41,8 @@ const el = {
   settingsToggle: document.getElementById("settings-toggle"),
   settingsOverlay: document.getElementById("settings-overlay"),
   settingsClose: document.getElementById("settings-close"),
+  cardDesignToggle: document.getElementById("card-design-toggle"),
+  cardDesignPanel: document.getElementById("card-design-panel"),
   cardDesignOptions: document.getElementById("card-design-options"),
 };
 
@@ -112,12 +115,36 @@ function applyCardBackDesign(cardImagePath) {
   });
 }
 
+function setCardDesignSectionOpen(open) {
+  state.cardDesignSectionOpen = open;
+  el.cardDesignToggle.setAttribute("aria-expanded", String(open));
+  el.cardDesignToggle.classList.toggle("is-open", open);
+
+  if (open) {
+    el.cardDesignPanel.hidden = false;
+    const targetHeight = el.cardDesignPanel.scrollHeight;
+    el.cardDesignPanel.style.maxHeight = `${targetHeight}px`;
+    el.cardDesignPanel.style.opacity = "1";
+    return;
+  }
+
+  if (el.cardDesignPanel.style.maxHeight === "none") {
+    el.cardDesignPanel.style.maxHeight = `${el.cardDesignPanel.scrollHeight}px`;
+  }
+
+  requestAnimationFrame(() => {
+    el.cardDesignPanel.style.maxHeight = "0px";
+    el.cardDesignPanel.style.opacity = "0";
+  });
+}
+
 function setSettingsOpen(open) {
   if (open) {
     state.settingsOpen = true;
     state.settingsClosing = false;
     el.settingsOverlay.hidden = false;
     el.settingsOverlay.classList.remove("is-closing");
+    setCardDesignSectionOpen(false);
   } else if (state.settingsOpen) {
     state.settingsClosing = true;
     el.settingsOverlay.classList.add("is-closing");
@@ -350,6 +377,7 @@ makeButtons();
 setupCardDesignOptions();
 updateMuteButton();
 setSettingsOpen(false);
+setCardDesignSectionOpen(false);
 
 el.muteToggle.addEventListener("click", () => {
   state.muted = !state.muted;
@@ -362,6 +390,21 @@ el.settingsToggle.addEventListener("click", () => {
 
 el.settingsClose.addEventListener("click", () => {
   setSettingsOpen(false);
+});
+
+el.cardDesignToggle.addEventListener("click", () => {
+  setCardDesignSectionOpen(!state.cardDesignSectionOpen);
+});
+
+el.cardDesignPanel.addEventListener("transitionend", (event) => {
+  if (event.propertyName !== "max-height") return;
+
+  if (state.cardDesignSectionOpen) {
+    el.cardDesignPanel.style.maxHeight = "none";
+    return;
+  }
+
+  el.cardDesignPanel.hidden = true;
 });
 
 el.settingsOverlay.addEventListener("click", (event) => {
