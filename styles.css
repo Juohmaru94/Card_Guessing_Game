@@ -365,6 +365,45 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   font-weight: 600;
 }
 
+.settings-section {
+  border: 1px solid rgba(215, 226, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(18, 28, 58, 0.55);
+}
+
+.settings-section-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #f4f7ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .8rem .85rem;
+  font-size: .95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-section-chevron {
+  transition: transform 260ms ease;
+}
+
+.settings-section-toggle.is-open .settings-section-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-section-panel {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 320ms cubic-bezier(.22,.61,.36,1), opacity 210ms ease;
+}
+
+.settings-section-panel .card-design-options {
+  padding: 0 .8rem .85rem;
+}
+
 .card-design-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -383,7 +422,6 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 .card-design-option:hover {
-  transform: translateY(-2px);
   border-color: rgba(164, 193, 255, 0.9);
 }
 

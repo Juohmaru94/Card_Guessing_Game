@@ -71,8 +71,21 @@
         <button id="settings-close" class="btn icon-btn" type="button" aria-label="Close settings">✕</button>
       </div>
       <div class="settings-content">
-        <span class="settings-label">Card Design</span>
-        <div id="card-design-options" class="card-design-options" role="radiogroup" aria-label="Card design"></div>
+        <section class="settings-section">
+          <button
+            id="card-design-toggle"
+            class="settings-section-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="card-design-panel"
+          >
+            <span>Card Design</span>
+            <span class="settings-section-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div id="card-design-panel" class="settings-section-panel" hidden>
+            <div id="card-design-options" class="card-design-options" role="radiogroup" aria-label="Card design"></div>
+          </div>
+        </section>
       </div>
     </section>
   </div>
