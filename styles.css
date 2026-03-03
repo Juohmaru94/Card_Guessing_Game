@@ -396,8 +396,10 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   display: block;
   width: 100%;
   aspect-ratio: 5 / 7;
-  background-size: cover;
+  background-image: var(--card-back-image);
+  background-size: 100% 100%;
   background-position: center;
+  background-repeat: no-repeat;
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.2);
   z-index: 1;
