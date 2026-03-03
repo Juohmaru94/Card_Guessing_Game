@@ -170,7 +170,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 }
 
 .card {
-  transition: transform 0.6s ease-in-out; /* slower, smoother flip */
+  transition: transform 0.9s ease-in-out; /* slower, smoother flip */
   transform-style: preserve-3d;
 }
 
@@ -224,11 +224,11 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 }
 
 .card.lose-flip .back {
-  animation: loseBackFlip 420ms ease forwards;
+  animation: loseBackFlip 500ms ease forwards;
 }
 
 .card.lose-flip .front {
-  animation: loseFrontFlip 420ms ease forwards;
+  animation: loseFrontFlip 500ms ease forwards;
 }
 
 @keyframes loseBackFlip {
