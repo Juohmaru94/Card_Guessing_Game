@@ -175,12 +175,12 @@ function setRevealedCardContent(card) {
 
 function revealCard(card) {
   setRevealedCardContent(card);
-  el.card.classList.remove("face-down", "discarding", "lose-flip");
+  el.card.classList.remove("face-down", "discarding", "lose-flip", "show-next-card");
   el.card.classList.add("revealed");
 }
 
 function hideCard() {
-  el.card.classList.remove("revealed", "shake", "win-glow", "discarding", "lose-flip");
+  el.card.classList.remove("revealed", "shake", "win-glow", "discarding", "lose-flip", "show-next-card");
   el.card.classList.add("face-down", "pulse");
   el.rank.textContent = "?";
   el.suits.forEach((suit) => {
@@ -231,7 +231,7 @@ function lose(card, guessed) {
   spawnParticles("#ff5d70");
 
   setRevealedCardContent(card);
-  el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow");
+  el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow", "show-next-card");
   el.card.classList.add("face-down", "lose-flip");
 
   const loseSessionId = state.sessionId;
@@ -249,7 +249,7 @@ function lose(card, guessed) {
 function win() {
   state.gameOver = true;
   state.lastOutcome = "win";
-  el.card.classList.remove("pulse", "discarding");
+  el.card.classList.remove("pulse", "discarding", "show-next-card");
   el.card.classList.add("win-glow");
   setButtonsEnabled(false);
   setResult("You Win!", "good");
@@ -273,6 +273,12 @@ function runSafeDiscardAnimation(guessed) {
   setResult("Safe guess", "good");
   el.card.classList.remove("pulse", "revealed", "shake", "win-glow", "lose-flip");
   el.card.classList.add("face-down", "discarding");
+
+  if (state.index < 51) {
+    el.card.classList.add("show-next-card");
+  } else {
+    el.card.classList.remove("show-next-card");
+  }
   el.cardText.textContent = `Safe! ${guessed} was not the card value.`;
   playSound("safe");
   const animationSessionId = state.sessionId;
@@ -285,11 +291,12 @@ function runSafeDiscardAnimation(guessed) {
     updateStats();
 
     if (state.index >= 52) {
-      el.card.classList.remove("discarding");
+      el.card.classList.remove("discarding", "show-next-card");
       win();
       return;
     }
 
+    el.card.classList.remove("show-next-card");
     hideCard();
     setResult("Make your guess", "neutral");
     setButtonsEnabled(true);
