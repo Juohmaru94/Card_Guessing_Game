@@ -1,7 +1,7 @@
-const suits = ["♣", "♥", "♠", "♦"];
+const suits = ["\u2663", "\u2665", "\u2660", "\u2666"];
 const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
-const redSuits = new Set(["♥", "♦"]);
+const redSuits = new Set(["\u2665", "\u2666"]);
 const loseFlipDurationMs = 400;
 const loseFlipSoundDelayMs = 440;
 const cardDesigns = [
@@ -17,11 +17,17 @@ const state = {
   discardTimer: null,
   loseTimer: null,
   sessionId: 0,
-  muted: false,
   hasStarted: false,
   settingsOpen: false,
   settingsClosing: false,
+  modeSectionOpen: false,
   cardDesignSectionOpen: false,
+  volumeSectionOpen: false,
+  selectedMode: "classic",
+  sfxEnabled: true,
+  musicEnabled: true,
+  sfxVolume: 1,
+  musicVolume: 0.3,
   lastOutcome: null,
   selectedCardBack: cardDesigns[0].file,
 };
@@ -37,13 +43,23 @@ const el = {
   result: document.getElementById("result"),
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
-  muteToggle: document.getElementById("mute-toggle"),
+  sfxToggle: document.getElementById("sfx-toggle"),
+  musicToggle: document.getElementById("music-toggle"),
   settingsToggle: document.getElementById("settings-toggle"),
   settingsOverlay: document.getElementById("settings-overlay"),
   settingsClose: document.getElementById("settings-close"),
+  modeToggle: document.getElementById("mode-toggle"),
+  modePanel: document.getElementById("mode-panel"),
+  modeOptions: document.getElementById("mode-options"),
   cardDesignToggle: document.getElementById("card-design-toggle"),
   cardDesignPanel: document.getElementById("card-design-panel"),
   cardDesignOptions: document.getElementById("card-design-options"),
+  volumeToggle: document.getElementById("volume-toggle"),
+  volumePanel: document.getElementById("volume-panel"),
+  musicVolume: document.getElementById("music-volume"),
+  musicVolumeValue: document.getElementById("music-volume-value"),
+  sfxVolume: document.getElementById("sfx-volume"),
+  sfxVolumeValue: document.getElementById("sfx-volume-value"),
 };
 
 const sounds = {
@@ -51,6 +67,16 @@ const sounds = {
   lose: new Audio("Sounds/lose_sound.mp3"),
   win: new Audio("Sounds/Winning_sound.mp3"),
   newGame: new Audio("Sounds/new_game_sound.mp3"),
+};
+
+const musicTrack = new Audio("Music/Ruby.mp3");
+musicTrack.loop = true;
+musicTrack.preload = "auto";
+
+const sectionConfig = {
+  mode: { stateKey: "modeSectionOpen", toggle: el.modeToggle, panel: el.modePanel },
+  cardDesign: { stateKey: "cardDesignSectionOpen", toggle: el.cardDesignToggle, panel: el.cardDesignPanel },
+  volume: { stateKey: "volumeSectionOpen", toggle: el.volumeToggle, panel: el.volumePanel },
 };
 
 Object.values(sounds).forEach((sound) => {
@@ -85,6 +111,22 @@ function makeButtons() {
   });
 }
 
+function setMode(mode) {
+  state.selectedMode = mode;
+  [...el.modeOptions.querySelectorAll(".mode-option")].forEach((option) => {
+    const isSelected = option.dataset.mode === mode;
+    option.classList.toggle("selected", isSelected);
+    option.setAttribute("aria-checked", String(isSelected));
+  });
+}
+
+function setupModeOptions() {
+  [...el.modeOptions.querySelectorAll(".mode-option")].forEach((option) => {
+    option.addEventListener("click", () => setMode(option.dataset.mode));
+  });
+  setMode(state.selectedMode);
+}
+
 function setupCardDesignOptions() {
   el.cardDesignOptions.innerHTML = "";
   cardDesigns.forEach((design) => {
@@ -115,27 +157,36 @@ function applyCardBackDesign(cardImagePath) {
   });
 }
 
-function setCardDesignSectionOpen(open) {
-  state.cardDesignSectionOpen = open;
-  el.cardDesignToggle.setAttribute("aria-expanded", String(open));
-  el.cardDesignToggle.classList.toggle("is-open", open);
+function setSectionOpen(sectionName, open) {
+  const section = sectionConfig[sectionName];
+  if (!section) return;
+
+  state[section.stateKey] = open;
+  section.toggle.setAttribute("aria-expanded", String(open));
+  section.toggle.classList.toggle("is-open", open);
 
   if (open) {
-    el.cardDesignPanel.hidden = false;
-    const targetHeight = el.cardDesignPanel.scrollHeight;
-    el.cardDesignPanel.style.maxHeight = `${targetHeight}px`;
-    el.cardDesignPanel.style.opacity = "1";
+    section.panel.hidden = false;
+    const targetHeight = section.panel.scrollHeight;
+    section.panel.style.maxHeight = `${targetHeight}px`;
+    section.panel.style.opacity = "1";
     return;
   }
 
-  if (el.cardDesignPanel.style.maxHeight === "none") {
-    el.cardDesignPanel.style.maxHeight = `${el.cardDesignPanel.scrollHeight}px`;
+  if (section.panel.style.maxHeight === "none") {
+    section.panel.style.maxHeight = `${section.panel.scrollHeight}px`;
   }
 
   requestAnimationFrame(() => {
-    el.cardDesignPanel.style.maxHeight = "0px";
-    el.cardDesignPanel.style.opacity = "0";
+    section.panel.style.maxHeight = "0px";
+    section.panel.style.opacity = "0";
   });
+}
+
+function closeAllSettingsSections() {
+  setSectionOpen("mode", false);
+  setSectionOpen("cardDesign", false);
+  setSectionOpen("volume", false);
 }
 
 function setSettingsOpen(open) {
@@ -144,7 +195,7 @@ function setSettingsOpen(open) {
     state.settingsClosing = false;
     el.settingsOverlay.hidden = false;
     el.settingsOverlay.classList.remove("is-closing");
-    setCardDesignSectionOpen(false);
+    closeAllSettingsSections();
   } else if (state.settingsOpen) {
     state.settingsClosing = true;
     el.settingsOverlay.classList.add("is-closing");
@@ -172,8 +223,25 @@ function setButtonsEnabled(enabled) {
   });
 }
 
+function applySfxVolume() {
+  Object.values(sounds).forEach((sound) => {
+    sound.volume = state.sfxVolume;
+  });
+}
+
+function updateMusicPlayback() {
+  musicTrack.volume = state.musicVolume;
+
+  if (!state.musicEnabled) {
+    musicTrack.pause();
+    return;
+  }
+
+  musicTrack.play().catch(() => {});
+}
+
 function playSound(name) {
-  if (state.muted) return;
+  if (!state.sfxEnabled || state.sfxVolume <= 0) return;
 
   const sound = sounds[name];
   if (!sound) return;
@@ -182,9 +250,25 @@ function playSound(name) {
   sound.play().catch(() => {});
 }
 
-function updateMuteButton() {
-  el.muteToggle.textContent = state.muted ? "🔇 Sound Off" : "🔊 Sound On";
-  el.muteToggle.setAttribute("aria-pressed", String(state.muted));
+function updateSfxToggleButton() {
+  el.sfxToggle.textContent = state.sfxEnabled ? "Sound FX: On" : "Sound FX: Off";
+  el.sfxToggle.setAttribute("aria-pressed", String(state.sfxEnabled));
+}
+
+function updateMusicToggleButton() {
+  el.musicToggle.textContent = state.musicEnabled ? "Music: On" : "Music: Off";
+  el.musicToggle.setAttribute("aria-pressed", String(state.musicEnabled));
+}
+
+function updateVolumeUI() {
+  const musicPercent = Math.round(state.musicVolume * 100);
+  const sfxPercent = Math.round(state.sfxVolume * 100);
+
+  el.musicVolume.value = String(musicPercent);
+  el.musicVolumeValue.textContent = `${musicPercent}%`;
+
+  el.sfxVolume.value = String(sfxPercent);
+  el.sfxVolumeValue.textContent = `${sfxPercent}%`;
 }
 
 function updateFrontColor(suit) {
@@ -211,7 +295,7 @@ function hideCard() {
   el.card.classList.add("face-down", "pulse");
   el.rank.textContent = "?";
   el.suits.forEach((suit) => {
-    suit.textContent = "♠";
+    suit.textContent = "\u2660";
   });
   el.front.classList.remove("red-suit");
   el.cardText.textContent = "Face-down card waiting...";
@@ -373,15 +457,60 @@ function newGame() {
   state.hasStarted = true;
 }
 
-makeButtons();
-setupCardDesignOptions();
-updateMuteButton();
-setSettingsOpen(false);
-setCardDesignSectionOpen(false);
+function setupSectionToggle(sectionName) {
+  const section = sectionConfig[sectionName];
 
-el.muteToggle.addEventListener("click", () => {
-  state.muted = !state.muted;
-  updateMuteButton();
+  section.toggle.addEventListener("click", () => {
+    setSectionOpen(sectionName, !state[section.stateKey]);
+  });
+
+  section.panel.addEventListener("transitionend", (event) => {
+    if (event.propertyName !== "max-height") return;
+
+    if (state[section.stateKey]) {
+      section.panel.style.maxHeight = "none";
+      return;
+    }
+
+    section.panel.hidden = true;
+  });
+}
+
+makeButtons();
+setupModeOptions();
+setupCardDesignOptions();
+applySfxVolume();
+updateVolumeUI();
+updateSfxToggleButton();
+updateMusicToggleButton();
+updateMusicPlayback();
+setSettingsOpen(false);
+closeAllSettingsSections();
+setupSectionToggle("mode");
+setupSectionToggle("cardDesign");
+setupSectionToggle("volume");
+
+el.sfxToggle.addEventListener("click", () => {
+  state.sfxEnabled = !state.sfxEnabled;
+  updateSfxToggleButton();
+});
+
+el.musicToggle.addEventListener("click", () => {
+  state.musicEnabled = !state.musicEnabled;
+  updateMusicToggleButton();
+  updateMusicPlayback();
+});
+
+el.musicVolume.addEventListener("input", (event) => {
+  state.musicVolume = Number(event.target.value) / 100;
+  updateVolumeUI();
+  updateMusicPlayback();
+});
+
+el.sfxVolume.addEventListener("input", (event) => {
+  state.sfxVolume = Number(event.target.value) / 100;
+  applySfxVolume();
+  updateVolumeUI();
 });
 
 el.settingsToggle.addEventListener("click", () => {
@@ -390,21 +519,6 @@ el.settingsToggle.addEventListener("click", () => {
 
 el.settingsClose.addEventListener("click", () => {
   setSettingsOpen(false);
-});
-
-el.cardDesignToggle.addEventListener("click", () => {
-  setCardDesignSectionOpen(!state.cardDesignSectionOpen);
-});
-
-el.cardDesignPanel.addEventListener("transitionend", (event) => {
-  if (event.propertyName !== "max-height") return;
-
-  if (state.cardDesignSectionOpen) {
-    el.cardDesignPanel.style.maxHeight = "none";
-    return;
-  }
-
-  el.cardDesignPanel.hidden = true;
 });
 
 el.settingsOverlay.addEventListener("click", (event) => {
@@ -420,4 +534,14 @@ el.settingsOverlay.addEventListener("animationend", (event) => {
 });
 
 el.restart.addEventListener("click", newGame);
+
+const unlockMusic = () => {
+  updateMusicPlayback();
+  document.removeEventListener("pointerdown", unlockMusic);
+  document.removeEventListener("keydown", unlockMusic);
+};
+
+document.addEventListener("pointerdown", unlockMusic, { once: true });
+document.addEventListener("keydown", unlockMusic, { once: true });
+
 newGame();
