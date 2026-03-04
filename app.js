@@ -38,6 +38,7 @@ const el = {
   rank: document.getElementById("card-rank"),
   suits: [...document.querySelectorAll("[data-card-suit]")],
   cardText: document.getElementById("card-text"),
+  shuffleLayer: document.getElementById("shuffle-layer"),
   remaining: document.getElementById("remaining"),
   round: document.getElementById("round"),
   result: document.getElementById("result"),
@@ -220,6 +221,106 @@ function setResult(message, type = "neutral") {
 function setButtonsEnabled(enabled) {
   [...el.grid.querySelectorAll("button")].forEach((btn) => {
     btn.disabled = !enabled;
+  });
+}
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function easeOutCubic(value) {
+  return 1 - (1 - value) ** 3;
+}
+
+function playNewGameShuffleAnimation() {
+  const cardCount = 12 + Math.floor(Math.random() * 5);
+  const cards = [];
+  const fanState = [];
+  const layerRect = el.shuffleLayer.getBoundingClientRect();
+  const deckRect = el.card.getBoundingClientRect();
+  const centerX = deckRect.left - layerRect.left + deckRect.width / 2;
+  const centerY = deckRect.top - layerRect.top + deckRect.height / 2;
+
+  el.card.classList.add("shuffle-hidden");
+  el.shuffleLayer.innerHTML = "";
+
+  for (let i = 0; i < cardCount; i += 1) {
+    const card = document.createElement("div");
+    card.className = "shuffle-card";
+    card.style.left = `${centerX - deckRect.width / 2}px`;
+    card.style.top = `${centerY - deckRect.height / 2}px`;
+    card.style.zIndex = String(i + 1);
+    el.shuffleLayer.appendChild(card);
+
+    const centeredIndex = i - (cardCount - 1) / 2;
+    fanState.push({
+      x: centeredIndex * (6 + Math.random() * 2),
+      y: Math.abs(centeredIndex) * 0.7,
+      rotation: -6 + Math.random() * 12,
+    });
+
+    cards.push(card);
+  }
+
+  const fanDurationMs = 260;
+  const riffleDurationMs = 420;
+  const collapseDurationMs = 320;
+  const totalDurationMs = fanDurationMs + riffleDurationMs + collapseDurationMs;
+  const riffleStart = fanDurationMs;
+  const collapseStart = fanDurationMs + riffleDurationMs;
+
+  return new Promise((resolve) => {
+    const startTime = performance.now();
+
+    function frame(now) {
+      const elapsed = now - startTime;
+
+      cards.forEach((card, i) => {
+        const fan = fanState[i];
+        const halfDirection = i < Math.ceil(cardCount / 2) ? -1 : 1;
+        let x = 0;
+        let y = 0;
+        let rotation = 0;
+        let scale = 1;
+
+        if (elapsed <= fanDurationMs) {
+          const progress = easeOutCubic(clamp01(elapsed / fanDurationMs));
+          x = fan.x * progress;
+          y = fan.y * progress;
+          rotation = fan.rotation * progress;
+        } else if (elapsed <= collapseStart) {
+          const localElapsed = elapsed - riffleStart;
+          const progress = easeOutCubic(clamp01(localElapsed / riffleDurationMs));
+          const riffleWave = Math.sin(localElapsed / 34 + i * 0.85);
+          const separation = (1 - progress) * 24 * halfDirection;
+          x = fan.x * 0.35 + separation + riffleWave * 4;
+          y = fan.y + Math.abs(riffleWave) * 5;
+          rotation = fan.rotation * 0.35 + halfDirection * (1 - progress) * 8 + riffleWave * 2;
+        } else {
+          const localElapsed = elapsed - collapseStart;
+          const progress = easeOutCubic(clamp01(localElapsed / collapseDurationMs));
+          const startX = fan.x * 0.35;
+          const startY = fan.y + 4;
+          x = startX * (1 - progress);
+          y = startY * (1 - progress);
+          rotation = fan.rotation * 0.3 * (1 - progress);
+          scale = 1 + Math.sin(progress * Math.PI) * 0.05;
+        }
+
+        card.style.transform = `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${scale})`;
+      });
+
+      if (elapsed < totalDurationMs) {
+        requestAnimationFrame(frame);
+        return;
+      }
+
+      el.shuffleLayer.innerHTML = "";
+      el.card.classList.remove("shuffle-hidden");
+      resolve();
+    }
+
+    requestAnimationFrame(frame);
   });
 }
 
@@ -533,7 +634,18 @@ el.settingsOverlay.addEventListener("animationend", (event) => {
   }
 });
 
-el.restart.addEventListener("click", newGame);
+el.restart.addEventListener("click", async () => {
+  if (state.isAnimating || state.settingsOpen) return;
+
+  clearDiscardTimer();
+  clearLoseTimer();
+  state.sessionId += 1;
+  state.isAnimating = true;
+  setButtonsEnabled(false);
+
+  await playNewGameShuffleAnimation();
+  newGame();
+});
 
 const unlockMusic = () => {
   updateMusicPlayback();
@@ -544,4 +656,12 @@ const unlockMusic = () => {
 document.addEventListener("pointerdown", unlockMusic, { once: true });
 document.addEventListener("keydown", unlockMusic, { once: true });
 
-newGame();
+function initializePreGameState() {
+  hideCard();
+  updateStats();
+  setButtonsEnabled(false);
+  setResult("Click New Game to start", "neutral");
+  state.hasStarted = false;
+}
+
+initializePreGameState();
