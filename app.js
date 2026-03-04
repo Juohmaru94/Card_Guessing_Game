@@ -30,6 +30,8 @@ const state = {
   musicVolume: 1,
   lastOutcome: null,
   selectedCardBack: cardDesigns[0].file,
+  finalRevealActive: false,
+  finalRevealSessionId: 0,
 };
 
 const el = {
@@ -48,6 +50,10 @@ const el = {
   musicToggle: document.getElementById("music-toggle"),
   settingsToggle: document.getElementById("settings-toggle"),
   settingsOverlay: document.getElementById("settings-overlay"),
+  finalRevealOverlay: document.getElementById("final-reveal-overlay"),
+  heroCard: document.getElementById("hero-card"),
+  heroCardRank: document.getElementById("hero-card-rank"),
+  heroSuits: [...document.querySelectorAll("[data-hero-suit]")],
   settingsClose: document.getElementById("settings-close"),
   modeToggle: document.getElementById("mode-toggle"),
   modePanel: document.getElementById("mode-panel"),
@@ -67,6 +73,7 @@ const sounds = {
   safe: new Audio("Sounds/safe_guess_sound.mp3"),
   lose: new Audio("Sounds/lose_sound.mp3"),
   win: new Audio("Sounds/Winning_sound.mp3"),
+  finalLoss: new Audio("Sounds/final_card_loss.mp3"),
   newGame: new Audio("Sounds/new_game_sound.mp3"),
 };
 
@@ -223,6 +230,143 @@ function setButtonsEnabled(enabled) {
     btn.disabled = !enabled;
   });
 }
+
+function setGameInputsDisabled(disabled) {
+  const controls = [
+    el.restart,
+    el.sfxToggle,
+    el.musicToggle,
+    el.settingsToggle,
+    el.settingsClose,
+    el.modeToggle,
+    el.cardDesignToggle,
+    el.volumeToggle,
+    el.musicVolume,
+    el.sfxVolume,
+    ...el.modeOptions.querySelectorAll("button"),
+    ...el.cardDesignOptions.querySelectorAll("button"),
+  ];
+
+  controls.forEach((control) => {
+    if (!control) return;
+    control.disabled = disabled;
+  });
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function setHeroCardContent(card) {
+  el.heroCardRank.textContent = card.rank;
+  el.heroSuits.forEach((suitNode) => {
+    suitNode.textContent = card.suit;
+  });
+
+  const isRedSuit = redSuits.has(card.suit);
+  el.heroCard.querySelector(".front").classList.toggle("red-suit", isRedSuit);
+}
+
+function showFinalRevealOverlay() {
+  el.finalRevealOverlay.classList.remove("settled");
+  el.finalRevealOverlay.classList.add("active");
+  el.finalRevealOverlay.setAttribute("aria-hidden", "false");
+}
+
+function hideFinalRevealOverlay() {
+  el.finalRevealOverlay.classList.remove("active", "settled");
+  el.finalRevealOverlay.setAttribute("aria-hidden", "true");
+  el.heroCard.classList.remove("final-flip", "revealed", "win-pulse");
+  el.heroCard.classList.add("face-down");
+  el.card.classList.remove("final-reveal-hidden");
+  el.heroCard.querySelectorAll(".hero-ring").forEach((ring) => ring.remove());
+}
+
+function playOutcomeSound(outcome) {
+  if (outcome === "win") {
+    playSound("win");
+    return;
+  }
+
+  const finalLossSound = sounds.finalLoss;
+  if (!state.sfxEnabled || state.sfxVolume <= 0) return;
+
+  finalLossSound.currentTime = 0;
+  finalLossSound.play().catch(() => {
+    playSound("lose");
+  });
+}
+
+function runWinCelebration() {
+  el.heroCard.classList.add("win-pulse");
+
+  [0, 280].forEach((delayMs) => {
+    setTimeout(() => {
+      const ring = document.createElement("div");
+      ring.className = "hero-ring";
+      ring.addEventListener("animationend", () => ring.remove(), { once: true });
+      el.heroCard.appendChild(ring);
+    }, delayMs);
+  });
+}
+
+async function startFinalRevealSequence({ outcome, cardData, guessed }) {
+  if (state.finalRevealActive) return;
+
+  const revealSessionId = state.sessionId;
+  state.finalRevealActive = true;
+  state.finalRevealSessionId = revealSessionId;
+  state.isAnimating = true;
+  setButtonsEnabled(false);
+  setGameInputsDisabled(true);
+
+  setHeroCardContent(cardData);
+  el.heroCard.classList.remove("revealed", "final-flip", "win-pulse");
+  el.heroCard.classList.add("face-down");
+  el.card.classList.add("final-reveal-hidden");
+
+  try {
+    showFinalRevealOverlay();
+    await wait(800);
+
+    if (revealSessionId !== state.sessionId) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const flipDuration = reducedMotion ? 840 : 1500;
+
+    el.heroCard.classList.add("final-flip");
+    // Force style flush so the browser always animates face-down -> revealed.
+    void el.heroCard.offsetWidth;
+    el.heroCard.classList.remove("face-down");
+    el.heroCard.classList.add("revealed");
+
+    await wait(flipDuration + 20);
+
+    if (revealSessionId !== state.sessionId) return;
+
+    if (outcome === "win") {
+      state.index += 1;
+      updateStats();
+      win({ skipParticles: true, skipSound: true });
+      playOutcomeSound("win");
+      runWinCelebration();
+    } else {
+      lose(cardData, guessed, { skipEffects: true, finalReveal: true });
+      playOutcomeSound("loss");
+    }
+
+    el.finalRevealOverlay.classList.add("settled");
+  } finally {
+    if (revealSessionId === state.sessionId) {
+      setGameInputsDisabled(false);
+      state.finalRevealActive = false;
+      state.isAnimating = false;
+    }
+  }
+}
+
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -430,7 +574,9 @@ function clearLoseTimer() {
   }
 }
 
-function lose(card, guessed) {
+function lose(card, guessed, options = {}) {
+  const { skipEffects = false, finalReveal = false } = options;
+
   clearLoseTimer();
 
   state.gameOver = true;
@@ -440,7 +586,18 @@ function lose(card, guessed) {
   setButtonsEnabled(false);
   setResult("You Lose", "bad");
   el.cardText.textContent = `You guessed ${guessed}. Card was ${card.rank} of ${card.suit}.`;
-  spawnParticles("#ff5d70");
+
+  if (!skipEffects) {
+    spawnParticles("#ff5d70");
+  }
+
+  if (finalReveal) {
+    setRevealedCardContent(card);
+    el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow", "show-next-card", "show-front-face", "lose-flip");
+    el.card.classList.add("face-down");
+    state.isAnimating = false;
+    return;
+  }
 
   setRevealedCardContent(card);
   el.card.classList.remove("pulse", "discarding", "revealed", "shake", "win-glow", "show-next-card", "show-front-face");
@@ -458,7 +615,10 @@ function lose(card, guessed) {
   }, loseFlipSoundDelayMs);
 }
 
-function win() {
+
+function win(options = {}) {
+  const { skipParticles = false, skipSound = false } = options;
+
   state.gameOver = true;
   state.lastOutcome = "win";
   el.card.classList.remove("pulse", "discarding", "show-next-card", "show-front-face");
@@ -466,10 +626,18 @@ function win() {
   setButtonsEnabled(false);
   setResult("You Win!", "good");
   el.cardText.textContent = "Incredible! You survived all 52 cards.";
-  spawnParticles("#35d07f");
-  playSound("win");
+
+  if (!skipParticles) {
+    spawnParticles("#35d07f");
+  }
+
+  if (!skipSound) {
+    playSound("win");
+  }
+
   state.isAnimating = false;
 }
+
 
 function clearDiscardTimer() {
   if (state.discardTimer !== null) {
@@ -517,9 +685,15 @@ function runSafeDiscardAnimation(guessed) {
 }
 
 function handleGuess(guess) {
-  if (state.gameOver || state.isAnimating || state.settingsOpen) return;
+  if (state.gameOver || state.isAnimating || state.settingsOpen || state.finalRevealActive) return;
 
   const card = state.deck[state.index];
+
+  if (state.index === 51) {
+    const outcome = guess === card.rank ? "loss" : "win";
+    startFinalRevealSequence({ outcome, cardData: card, guessed: guess });
+    return;
+  }
 
   if (guess === card.rank) {
     lose(card, guess);
@@ -542,6 +716,9 @@ function newGame() {
   state.index = 0;
   state.gameOver = false;
   state.isAnimating = false;
+  state.finalRevealActive = false;
+
+  hideFinalRevealOverlay();
 
   if (state.lastOutcome === "lose") {
     el.card.classList.add("instant-reset");
