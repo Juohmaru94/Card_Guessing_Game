@@ -245,7 +245,6 @@ function setGameInputsDisabled(disabled) {
     el.sfxVolume,
     ...el.modeOptions.querySelectorAll("button"),
     ...el.cardDesignOptions.querySelectorAll("button"),
-    ...el.grid.querySelectorAll("button"),
   ];
 
   controls.forEach((control) => {
@@ -271,12 +270,13 @@ function setHeroCardContent(card) {
 }
 
 function showFinalRevealOverlay() {
+  el.finalRevealOverlay.classList.remove("settled");
   el.finalRevealOverlay.classList.add("active");
   el.finalRevealOverlay.setAttribute("aria-hidden", "false");
 }
 
 function hideFinalRevealOverlay() {
-  el.finalRevealOverlay.classList.remove("active");
+  el.finalRevealOverlay.classList.remove("active", "settled");
   el.finalRevealOverlay.setAttribute("aria-hidden", "true");
   el.heroCard.classList.remove("final-flip", "revealed", "win-pulse");
   el.heroCard.classList.add("face-down");
@@ -325,35 +325,46 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
   el.heroCard.classList.remove("revealed", "final-flip", "win-pulse");
   el.heroCard.classList.add("face-down");
 
-  showFinalRevealOverlay();
-  await wait(800);
+  try {
+    showFinalRevealOverlay();
+    await wait(800);
 
-  if (revealSessionId !== state.sessionId) return;
+    if (revealSessionId !== state.sessionId) return;
 
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const flipDuration = reducedMotion ? 340 : 1000;
-  el.heroCard.classList.add("final-flip");
-  el.heroCard.classList.remove("face-down");
-  el.heroCard.classList.add("revealed");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const flipDuration = reducedMotion ? 340 : 1000;
 
-  await wait(flipDuration + 20);
+    el.heroCard.classList.add("final-flip");
+    // Force style flush so the browser always animates face-down -> revealed.
+    void el.heroCard.offsetWidth;
+    el.heroCard.classList.remove("face-down");
+    el.heroCard.classList.add("revealed");
 
-  if (revealSessionId !== state.sessionId) return;
+    await wait(flipDuration + 20);
 
-  if (outcome === "win") {
-    state.index += 1;
-    updateStats();
-    win({ skipParticles: true, skipSound: true });
-    playOutcomeSound("win");
-    runWinCelebration();
-  } else {
-    lose(cardData, guessed, { skipEffects: true, finalReveal: true });
-    playOutcomeSound("loss");
+    if (revealSessionId !== state.sessionId) return;
+
+    if (outcome === "win") {
+      state.index += 1;
+      updateStats();
+      win({ skipParticles: true, skipSound: true });
+      playOutcomeSound("win");
+      runWinCelebration();
+    } else {
+      lose(cardData, guessed, { skipEffects: true, finalReveal: true });
+      playOutcomeSound("loss");
+    }
+
+    el.finalRevealOverlay.classList.add("settled");
+  } finally {
+    if (revealSessionId === state.sessionId) {
+      setGameInputsDisabled(false);
+      state.finalRevealActive = false;
+      state.isAnimating = false;
+    }
   }
-
-  setGameInputsDisabled(false);
-  state.finalRevealActive = false;
 }
+
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));

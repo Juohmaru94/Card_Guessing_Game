@@ -354,37 +354,47 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 
 .final-reveal-overlay.active {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
   background: rgba(4, 10, 20, 0.45);
+}
+
+.final-reveal-overlay.settled {
+  background: rgba(4, 10, 20, 0.08);
 }
 
 .hero-card {
   position: relative;
   width: min(250px, 44vw);
   aspect-ratio: 5/7;
+  transform: translateY(8px) scale(0.94);
+  transition: transform 360ms ease;
+}
+
+.hero-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
   transform-style: preserve-3d;
-  perspective: 1300px;
-  transform: translateY(8px) scale(0.94) rotateY(0deg);
   transition: transform 360ms ease;
 }
 
 .final-reveal-overlay.active .hero-card {
-  transform: translateY(0) scale(1) rotateY(0deg);
+  transform: translateY(0) scale(1);
 }
 
 .hero-card .front {
   transform: rotateY(180deg);
 }
 
-.hero-card.face-down {
-  transform: translateY(0) scale(1) rotateY(0deg);
+.hero-card.face-down .hero-card-inner {
+  transform: rotateY(0deg);
 }
 
-.hero-card.revealed {
-  transform: translateY(0) scale(1) rotateY(180deg);
+.hero-card.revealed .hero-card-inner {
+  transform: rotateY(180deg);
 }
 
-.hero-card.final-flip {
+.hero-card.final-flip .hero-card-inner {
   transition: transform 1000ms ease-in-out;
 }
 
@@ -725,7 +735,7 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-card.final-flip {
+  .hero-card.final-flip .hero-card-inner {
     transition: opacity 320ms ease;
   }
 
