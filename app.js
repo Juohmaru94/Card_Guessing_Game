@@ -27,7 +27,7 @@ const state = {
   sfxEnabled: true,
   musicEnabled: true,
   sfxVolume: 1,
-  musicVolume: 0.3,
+  musicVolume: 1,
   lastOutcome: null,
   selectedCardBack: cardDesigns[0].file,
 };
