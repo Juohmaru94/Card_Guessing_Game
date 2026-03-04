@@ -397,12 +397,17 @@ function handleFinalRevealPointerMove(event) {
   queueFinalRevealAngle(state.finalRevealStartAngle + rotationDelta);
 }
 
-function finishFinalRevealPointer() {
-  if (state.finalRevealPointerId !== null) {
-    try {
-      el.card.releasePointerCapture(state.finalRevealPointerId);
-    } catch (_) {}
+function finishFinalRevealPointer(event) {
+  const capturedPointerId = state.finalRevealPointerId;
+  if (capturedPointerId === null) return;
+
+  if (event && typeof event.pointerId === "number" && event.pointerId !== capturedPointerId) {
+    return;
   }
+
+  try {
+    el.card.releasePointerCapture(capturedPointerId);
+  } catch (_) {}
 
   state.finalRevealPointerId = null;
   el.card.classList.remove("is-dragging");
