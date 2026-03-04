@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -18,8 +18,11 @@
         <p class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
       </div>
       <div class="top-bar-actions">
-        <button id="settings-toggle" class="btn icon-btn" type="button" aria-label="Open settings">⚙️</button>
-        <button id="mute-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Mute sound effects">🔊 Sound On</button>
+        <button id="settings-toggle" class="btn icon-btn" type="button" aria-label="Open settings">&#9881;</button>
+        <div class="audio-controls">
+          <button id="sfx-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Toggle Sound FX">Sound FX: On</button>
+          <button id="music-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Toggle Music">Music: On</button>
+        </div>
       </div>
     </header>
 
@@ -42,10 +45,10 @@
       <div id="card" class="card face-down" aria-live="polite">
         <div class="card-face front">
           <span id="card-rank">?</span>
-          <span class="card-suit top-left" data-card-suit>♠</span>
-          <span class="card-suit top-right" data-card-suit>♠</span>
-          <span class="card-suit bottom-left" data-card-suit>♠</span>
-          <span class="card-suit bottom-right" data-card-suit>♠</span>
+          <span class="card-suit top-left" data-card-suit>&spades;</span>
+          <span class="card-suit top-right" data-card-suit>&spades;</span>
+          <span class="card-suit bottom-left" data-card-suit>&spades;</span>
+          <span class="card-suit bottom-right" data-card-suit>&spades;</span>
         </div>
 
         <div class="card-face back" aria-hidden="true"></div>
@@ -68,9 +71,28 @@
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="settings-header">
         <h2 id="settings-title">Settings</h2>
-        <button id="settings-close" class="btn icon-btn" type="button" aria-label="Close settings">✕</button>
+        <button id="settings-close" class="btn icon-btn" type="button" aria-label="Close settings">&#10005;</button>
       </div>
       <div class="settings-content">
+        <section class="settings-section">
+          <button
+            id="mode-toggle"
+            class="settings-section-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="mode-panel"
+          >
+            <span>Mode</span>
+            <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+          </button>
+          <div id="mode-panel" class="settings-section-panel" hidden>
+            <div id="mode-options" class="mode-options" role="radiogroup" aria-label="Game mode">
+              <button id="mode-classic" class="mode-option selected" type="button" role="radio" aria-checked="true" data-mode="classic">Classic</button>
+              <button id="mode-streak" class="mode-option" type="button" role="radio" aria-checked="false" data-mode="streak">Streak</button>
+            </div>
+          </div>
+        </section>
+
         <section class="settings-section">
           <button
             id="card-design-toggle"
@@ -80,10 +102,38 @@
             aria-controls="card-design-panel"
           >
             <span>Card Design</span>
-            <span class="settings-section-chevron" aria-hidden="true">▾</span>
+            <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
           </button>
           <div id="card-design-panel" class="settings-section-panel" hidden>
             <div id="card-design-options" class="card-design-options" role="radiogroup" aria-label="Card design"></div>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <button
+            id="volume-toggle"
+            class="settings-section-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="volume-panel"
+          >
+            <span>Volume</span>
+            <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+          </button>
+          <div id="volume-panel" class="settings-section-panel" hidden>
+            <div class="volume-controls">
+              <label class="volume-control" for="music-volume">
+                <span>Game Music</span>
+                <span id="music-volume-value">60%</span>
+              </label>
+              <input id="music-volume" class="metal-slider" type="range" min="0" max="100" step="1" value="60" aria-label="Game music volume">
+
+              <label class="volume-control" for="sfx-volume">
+                <span>Sound FX</span>
+                <span id="sfx-volume-value">100%</span>
+              </label>
+              <input id="sfx-volume" class="metal-slider" type="range" min="0" max="100" step="1" value="100" aria-label="Sound FX volume">
+            </div>
           </div>
         </section>
       </div>
