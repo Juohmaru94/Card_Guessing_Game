@@ -178,6 +178,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 }
 
 #card-rank { font-size: 3.2rem; }
+#hero-card-rank { font-size: 4.1rem; }
 
 .card-suit {
   position: absolute;
@@ -208,6 +209,10 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 }
 
 .card.shuffle-hidden {
+  opacity: 0;
+}
+
+.card.final-reveal-hidden {
   opacity: 0;
 }
 
@@ -395,7 +400,7 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 .hero-card.final-flip .hero-card-inner {
-  transition: transform 1000ms ease-in-out;
+  transition: transform 1500ms ease-in-out;
 }
 
 .hero-card.win-pulse {

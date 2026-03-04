@@ -280,6 +280,7 @@ function hideFinalRevealOverlay() {
   el.finalRevealOverlay.setAttribute("aria-hidden", "true");
   el.heroCard.classList.remove("final-flip", "revealed", "win-pulse");
   el.heroCard.classList.add("face-down");
+  el.card.classList.remove("final-reveal-hidden");
   el.heroCard.querySelectorAll(".hero-ring").forEach((ring) => ring.remove());
 }
 
@@ -324,6 +325,7 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
   setHeroCardContent(cardData);
   el.heroCard.classList.remove("revealed", "final-flip", "win-pulse");
   el.heroCard.classList.add("face-down");
+  el.card.classList.add("final-reveal-hidden");
 
   try {
     showFinalRevealOverlay();
@@ -332,7 +334,7 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
     if (revealSessionId !== state.sessionId) return;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const flipDuration = reducedMotion ? 340 : 1000;
+    const flipDuration = reducedMotion ? 840 : 1500;
 
     el.heroCard.classList.add("final-flip");
     // Force style flush so the browser always animates face-down -> revealed.
