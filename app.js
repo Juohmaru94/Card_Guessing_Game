@@ -399,7 +399,7 @@ function hideCard() {
     suit.textContent = "\u2660";
   });
   el.front.classList.remove("red-suit");
-  el.cardText.textContent = "Face-down card waiting...";
+  el.cardText.textContent = "Face down card waiting";
 }
 
 function updateStats() {
@@ -642,6 +642,7 @@ el.restart.addEventListener("click", async () => {
   state.sessionId += 1;
   state.isAnimating = true;
   setButtonsEnabled(false);
+  el.cardText.textContent = "Shuffling";
 
   await playNewGameShuffleAnimation();
   newGame();
@@ -658,9 +659,10 @@ document.addEventListener("keydown", unlockMusic, { once: true });
 
 function initializePreGameState() {
   hideCard();
+  el.cardText.textContent = "Click New Game to shuffle";
   updateStats();
   setButtonsEnabled(false);
-  setResult("Click New Game to start", "neutral");
+  setResult("", "neutral");
   state.hasStarted = false;
 }
 
