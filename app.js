@@ -32,6 +32,7 @@ const state = {
   selectedCardBack: cardDesigns[0].file,
   finalRevealActive: false,
   finalRevealSessionId: 0,
+  finalPulseInterval: null,
 };
 
 const el = {
@@ -276,10 +277,12 @@ function showFinalRevealOverlay() {
 }
 
 function hideFinalRevealOverlay() {
+  clearFinalRevealPulses();
   el.finalRevealOverlay.classList.remove("active", "settled");
   el.finalRevealOverlay.setAttribute("aria-hidden", "true");
-  el.heroCard.classList.remove("final-flip", "revealed", "win-pulse");
+  el.heroCard.classList.remove("final-flip", "revealed", "win-pulse", "loss-pulse");
   el.heroCard.classList.add("face-down");
+  el.heroCard.removeAttribute("data-outcome");
   el.card.classList.remove("final-reveal-hidden");
   el.heroCard.querySelectorAll(".hero-ring").forEach((ring) => ring.remove());
 }
@@ -299,17 +302,35 @@ function playOutcomeSound(outcome) {
   });
 }
 
-function runWinCelebration() {
-  el.heroCard.classList.add("win-pulse");
+function clearFinalRevealPulses() {
+  if (state.finalPulseInterval !== null) {
+    clearInterval(state.finalPulseInterval);
+    state.finalPulseInterval = null;
+  }
+}
 
-  [0, 280].forEach((delayMs) => {
-    setTimeout(() => {
-      const ring = document.createElement("div");
-      ring.className = "hero-ring";
-      ring.addEventListener("animationend", () => ring.remove(), { once: true });
-      el.heroCard.appendChild(ring);
-    }, delayMs);
-  });
+function spawnFinalRevealRing(outcome) {
+  const ring = document.createElement("div");
+  ring.className = `hero-ring ${outcome === "win" ? "hero-ring-win" : "hero-ring-loss"}`;
+  ring.addEventListener("animationend", () => ring.remove(), { once: true });
+  el.heroCard.appendChild(ring);
+}
+
+function runFinalRevealPulses(outcome) {
+  clearFinalRevealPulses();
+  el.heroCard.classList.remove("win-pulse", "loss-pulse");
+  el.heroCard.classList.add(outcome === "win" ? "win-pulse" : "loss-pulse");
+  el.heroCard.dataset.outcome = outcome;
+
+  spawnFinalRevealRing(outcome);
+  setTimeout(() => {
+    if (state.finalPulseInterval === null) return;
+    spawnFinalRevealRing(outcome);
+  }, 300);
+
+  state.finalPulseInterval = setInterval(() => {
+    spawnFinalRevealRing(outcome);
+  }, 700);
 }
 
 async function startFinalRevealSequence({ outcome, cardData, guessed }) {
@@ -323,9 +344,10 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
   setGameInputsDisabled(true);
 
   setHeroCardContent(cardData);
-  el.heroCard.classList.remove("revealed", "final-flip", "win-pulse");
+  el.heroCard.classList.remove("revealed", "final-flip", "win-pulse", "loss-pulse");
   el.heroCard.classList.add("face-down");
   el.card.classList.add("final-reveal-hidden");
+  el.cardText.textContent = "";
 
   try {
     showFinalRevealOverlay();
@@ -351,10 +373,11 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
       updateStats();
       win({ skipParticles: true, skipSound: true });
       playOutcomeSound("win");
-      runWinCelebration();
+      runFinalRevealPulses("win");
     } else {
       lose(cardData, guessed, { skipEffects: true, finalReveal: true });
       playOutcomeSound("loss");
+      runFinalRevealPulses("loss");
     }
 
     el.finalRevealOverlay.classList.add("settled");
@@ -816,6 +839,7 @@ el.restart.addEventListener("click", async () => {
 
   clearDiscardTimer();
   clearLoseTimer();
+  hideFinalRevealOverlay();
   state.sessionId += 1;
   state.isAnimating = true;
   setButtonsEnabled(false);
