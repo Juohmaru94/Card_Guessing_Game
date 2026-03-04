@@ -91,11 +91,35 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 .value.neutral { color: var(--neutral); }
 
 .table-area {
+  position: relative;
   margin: 1.3rem 0 1rem;
   display: grid;
   justify-items: center;
   gap: .6rem;
   perspective: 1100px;
+}
+
+.shuffle-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 12;
+}
+
+.shuffle-card {
+  position: absolute;
+  width: min(210px, 40vw);
+  aspect-ratio: 5/7;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background-image: var(--card-back-image);
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  will-change: transform;
+  transform-origin: center center;
 }
 
 .card {
@@ -181,6 +205,10 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 
 .card.instant-reset {
   transition: none !important;
+}
+
+.card.shuffle-hidden {
+  opacity: 0;
 }
 
 .card.face-down { transform: rotateY(0deg); }
