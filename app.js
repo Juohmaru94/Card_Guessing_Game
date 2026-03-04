@@ -625,7 +625,7 @@ function win(options = {}) {
   el.card.classList.add("win-glow");
   setButtonsEnabled(false);
   setResult("You Win!", "good");
-  el.cardText.textContent = "Incredible! You survived all 52 cards.";
+  
 
   if (!skipParticles) {
     spawnParticles("#35d07f");
