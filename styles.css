@@ -38,6 +38,21 @@ body.modal-open .game-shell {
   pointer-events: none;
 }
 
+.final-reveal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 20, 0.68);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+  z-index: 26;
+}
+
+.final-reveal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .game-shell {
   width: min(920px, 94vw);
   margin: 2rem auto;
@@ -129,6 +144,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
   transform-style: preserve-3d;
   transition: transform .65s cubic-bezier(.2,.8,.2,1), filter .25s;
   isolation: isolate;
+  will-change: transform;
 }
 
 .card::before {
@@ -213,6 +229,66 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 
 .card.face-down { transform: rotateY(0deg); }
 .card.revealed { transform: rotateY(180deg); }
+
+.card.final-reveal-active {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotateY(var(--final-flip-angle, 0deg)) !important;
+  z-index: 30;
+  transition: filter .2s ease, box-shadow .2s ease;
+  cursor: grab;
+  touch-action: none;
+}
+
+.card.final-reveal-active.is-dragging {
+  cursor: grabbing;
+}
+
+.card.final-reveal-active:not(.final-reveal-locked):hover {
+  filter: drop-shadow(0 0 20px rgba(138, 181, 255, 0.35));
+}
+
+.card.final-reveal-locked {
+  cursor: default;
+}
+
+.card.final-reveal-victory {
+  animation: finalVictoryPulse 1.9s ease-in-out forwards;
+}
+
+@keyframes finalVictoryPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(53, 208, 127, 0); }
+  20% { box-shadow: 0 0 14px rgba(53, 208, 127, 0.45); }
+  52% { box-shadow: 0 0 28px rgba(53, 208, 127, 0.7); }
+}
+
+.shockwave-ring {
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 3px solid rgba(93, 255, 152, 0.68);
+  z-index: 29;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.2);
+  animation: shockwaveExpand 940ms ease-out forwards;
+}
+
+.shockwave-ring.ring-2 {
+  animation-delay: 140ms;
+}
+
+@keyframes shockwaveExpand {
+  from {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(0.22);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(14);
+  }
+}
 
 .card.pulse { animation: pulse 1.2s infinite; }
 @keyframes pulse {
@@ -639,4 +715,15 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   }
 
   .status-panel { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.final-reveal-active {
+    transition: transform 180ms ease, opacity 180ms ease;
+  }
+
+  .shockwave-ring,
+  .card.final-reveal-victory {
+    animation: none;
+  }
 }

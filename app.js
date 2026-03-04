@@ -4,6 +4,8 @@ const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 const redSuits = new Set(["\u2665", "\u2666"]);
 const loseFlipDurationMs = 400;
 const loseFlipSoundDelayMs = 440;
+const finalFlipDistancePx = 300;
+const finalFlipMaxDeg = 180;
 const cardDesigns = [
   { label: "Slime", file: "back_images/backcard.png" },
   { label: "Blood Daggers", file: "back_images/backcard2.png" },
@@ -30,6 +32,23 @@ const state = {
   musicVolume: 1,
   lastOutcome: null,
   selectedCardBack: cardDesigns[0].file,
+  finalRevealActive: false,
+  finalRevealCompleted: false,
+  finalRevealResolved: false,
+  finalRevealOutcome: null,
+  finalRevealGuess: null,
+  finalRevealCard: null,
+  finalRevealAngle: 0,
+  finalRevealPointerId: null,
+  finalRevealStartX: 0,
+  finalRevealStartY: 0,
+  finalRevealStartAngle: 0,
+  finalRevealAxis: "x",
+  finalRevealDirection: 1,
+  finalRevealRaf: null,
+  finalRevealPendingAngle: 0,
+  finalRevealSoundPlayed: false,
+  finalRevealReducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
 };
 
 const el = {
@@ -61,6 +80,7 @@ const el = {
   musicVolumeValue: document.getElementById("music-volume-value"),
   sfxVolume: document.getElementById("sfx-volume"),
   sfxVolumeValue: document.getElementById("sfx-volume-value"),
+  finalRevealOverlay: document.getElementById("final-reveal-overlay"),
 };
 
 const sounds = {
@@ -68,6 +88,7 @@ const sounds = {
   lose: new Audio("Sounds/lose_sound.mp3"),
   win: new Audio("Sounds/Winning_sound.mp3"),
   newGame: new Audio("Sounds/new_game_sound.mp3"),
+  finalLoss: new Audio("Sounds/final_card_loss.mp3"),
 };
 
 const musicTrack = new Audio("Music/Ruby.mp3");
@@ -219,8 +240,9 @@ function setResult(message, type = "neutral") {
 }
 
 function setButtonsEnabled(enabled) {
+  const shouldDisable = !enabled || state.finalRevealActive;
   [...el.grid.querySelectorAll("button")].forEach((btn) => {
-    btn.disabled = !enabled;
+    btn.disabled = shouldDisable;
   });
 }
 
@@ -230,6 +252,257 @@ function clamp01(value) {
 
 function easeOutCubic(value) {
   return 1 - (1 - value) ** 3;
+}
+
+function setFinalRevealAngle(angle) {
+  const clamped = Math.max(0, Math.min(finalFlipMaxDeg, angle));
+  state.finalRevealAngle = clamped;
+  el.card.style.setProperty("--final-flip-angle", `${clamped}deg`);
+}
+
+function flushFinalRevealAngle() {
+  state.finalRevealRaf = null;
+  setFinalRevealAngle(state.finalRevealPendingAngle);
+}
+
+function queueFinalRevealAngle(angle) {
+  state.finalRevealPendingAngle = angle;
+  if (state.finalRevealRaf !== null) return;
+  state.finalRevealRaf = requestAnimationFrame(flushFinalRevealAngle);
+}
+
+function cancelFinalRevealRaf() {
+  if (state.finalRevealRaf !== null) {
+    cancelAnimationFrame(state.finalRevealRaf);
+    state.finalRevealRaf = null;
+  }
+}
+
+function animateFinalRevealTo(targetAngle, durationMs, onComplete) {
+  const startAngle = state.finalRevealAngle;
+  const delta = targetAngle - startAngle;
+  const startTime = performance.now();
+
+  function frame(now) {
+    const progress = clamp01((now - startTime) / durationMs);
+    const eased = easeOutCubic(progress);
+    setFinalRevealAngle(startAngle + delta * eased);
+
+    if (progress < 1) {
+      requestAnimationFrame(frame);
+      return;
+    }
+
+    if (onComplete) onComplete();
+  }
+
+  requestAnimationFrame(frame);
+}
+
+function cleanupShockwaves() {
+  document.querySelectorAll(".shockwave-ring").forEach((ring) => ring.remove());
+}
+
+function runFinalRevealVictoryEffects() {
+  cleanupShockwaves();
+
+  const cardRect = el.card.getBoundingClientRect();
+  const centerX = cardRect.left + cardRect.width / 2;
+  const centerY = cardRect.top + cardRect.height / 2;
+
+  ["ring-1", "ring-2"].forEach((ringName, index) => {
+    const ring = document.createElement("div");
+    ring.className = `shockwave-ring ${ringName}`;
+    ring.style.left = `${centerX}px`;
+    ring.style.top = `${centerY}px`;
+    ring.style.animationDelay = `${index * 140}ms`;
+    document.body.appendChild(ring);
+    ring.addEventListener("animationend", () => ring.remove(), { once: true });
+  });
+
+  el.card.classList.add("final-reveal-victory");
+
+  const clearEffects = () => {
+    el.card.classList.remove("final-reveal-victory");
+    cleanupShockwaves();
+  };
+
+  sounds.win.addEventListener("ended", clearEffects, { once: true });
+  setTimeout(clearEffects, 2300);
+}
+
+function playFinalRevealOutcomeSound() {
+  if (state.finalRevealSoundPlayed) return;
+  state.finalRevealSoundPlayed = true;
+
+  if (state.finalRevealOutcome === "win") {
+    playSound("win");
+    runFinalRevealVictoryEffects();
+    return;
+  }
+
+  if (!state.sfxEnabled || state.sfxVolume <= 0) return;
+
+  sounds.finalLoss.currentTime = 0;
+  sounds.finalLoss.play().catch(() => {
+    playSound("lose");
+  });
+}
+
+function resolveFinalRevealOutcome() {
+  if (state.finalRevealResolved) return;
+
+  state.finalRevealResolved = true;
+  state.finalRevealCompleted = true;
+  state.finalRevealActive = false;
+  state.isAnimating = false;
+  state.gameOver = true;
+  state.index = 52;
+
+  el.finalRevealOverlay.classList.remove("active");
+  el.finalRevealOverlay.setAttribute("aria-hidden", "true");
+
+  if (state.finalRevealOutcome === "win") {
+    state.lastOutcome = "win";
+    setResult("You Win!", "good");
+    el.cardText.textContent = "Incredible! You survived all 52 cards.";
+  } else {
+    state.lastOutcome = "lose";
+    setResult("You Lose", "bad");
+    el.cardText.textContent = `You guessed ${state.finalRevealGuess}. Card was ${state.finalRevealCard.rank} of ${state.finalRevealCard.suit}.`;
+  }
+
+  updateStats();
+  playFinalRevealOutcomeSound();
+}
+
+function completeFinalReveal() {
+  if (state.finalRevealCompleted) return;
+
+  state.finalRevealCompleted = true;
+  el.card.classList.add("final-reveal-locked");
+  el.card.classList.remove("is-dragging");
+  resolveFinalRevealOutcome();
+}
+
+function handleFinalRevealPointerMove(event) {
+  if (!state.finalRevealActive || state.finalRevealCompleted) return;
+  if (event.pointerId !== state.finalRevealPointerId) return;
+
+  const deltaRaw = state.finalRevealAxis === "x"
+    ? event.clientX - state.finalRevealStartX
+    : event.clientY - state.finalRevealStartY;
+  const directionalDelta = deltaRaw * state.finalRevealDirection;
+  const rotationDelta = (directionalDelta / finalFlipDistancePx) * finalFlipMaxDeg;
+  queueFinalRevealAngle(state.finalRevealStartAngle + rotationDelta);
+}
+
+function finishFinalRevealPointer() {
+  if (state.finalRevealPointerId !== null) {
+    try {
+      el.card.releasePointerCapture(state.finalRevealPointerId);
+    } catch (_) {}
+  }
+
+  state.finalRevealPointerId = null;
+  el.card.classList.remove("is-dragging");
+
+  if (!state.finalRevealActive || state.finalRevealCompleted) return;
+
+  cancelFinalRevealRaf();
+  setFinalRevealAngle(state.finalRevealPendingAngle);
+
+  const shouldComplete = state.finalRevealAngle >= finalFlipMaxDeg * 0.55;
+  if (shouldComplete) {
+    animateFinalRevealTo(finalFlipMaxDeg, 250, completeFinalReveal);
+  } else {
+    animateFinalRevealTo(0, 200);
+  }
+}
+
+function handleFinalRevealPointerDown(event) {
+  if (!state.finalRevealActive || state.finalRevealCompleted || state.finalRevealReducedMotion) return;
+
+  event.preventDefault();
+  const cardRect = el.card.getBoundingClientRect();
+  const centerX = cardRect.left + cardRect.width / 2;
+  const centerY = cardRect.top + cardRect.height / 2;
+  const xOffset = event.clientX - centerX;
+  const yOffset = event.clientY - centerY;
+
+  state.finalRevealAxis = Math.abs(xOffset) >= Math.abs(yOffset) ? "x" : "y";
+  if (state.finalRevealAxis === "x") {
+    state.finalRevealDirection = xOffset >= 0 ? -1 : 1;
+  } else {
+    state.finalRevealDirection = yOffset >= 0 ? -1 : 1;
+  }
+
+  state.finalRevealPointerId = event.pointerId;
+  state.finalRevealStartX = event.clientX;
+  state.finalRevealStartY = event.clientY;
+  state.finalRevealStartAngle = state.finalRevealAngle;
+
+  el.card.classList.add("is-dragging");
+  el.card.setPointerCapture(event.pointerId);
+}
+
+function triggerReducedMotionFinalReveal() {
+  if (!state.finalRevealActive || state.finalRevealCompleted) return;
+  el.card.classList.add("final-reveal-locked");
+  animateFinalRevealTo(finalFlipMaxDeg, 180, completeFinalReveal);
+}
+
+function resetFinalRevealState() {
+  cancelFinalRevealRaf();
+  el.card.removeEventListener("click", triggerReducedMotionFinalReveal);
+
+  state.finalRevealActive = false;
+  state.finalRevealCompleted = false;
+  state.finalRevealResolved = false;
+  state.finalRevealOutcome = null;
+  state.finalRevealGuess = null;
+  state.finalRevealCard = null;
+  state.finalRevealPointerId = null;
+  state.finalRevealStartAngle = 0;
+  state.finalRevealPendingAngle = 0;
+  state.finalRevealAngle = 0;
+  state.finalRevealSoundPlayed = false;
+
+  el.finalRevealOverlay.classList.remove("active");
+  el.finalRevealOverlay.setAttribute("aria-hidden", "true");
+  el.card.classList.remove("final-reveal-active", "final-reveal-locked", "is-dragging", "final-reveal-victory");
+  el.card.style.removeProperty("--final-flip-angle");
+  cleanupShockwaves();
+}
+
+function startFinalReveal(card, guess) {
+  if (state.finalRevealActive || state.finalRevealCompleted || state.finalRevealResolved) return;
+
+  state.isAnimating = true;
+  state.finalRevealActive = true;
+  state.finalRevealCompleted = false;
+  state.finalRevealResolved = false;
+  state.finalRevealGuess = guess;
+  state.finalRevealCard = card;
+  state.finalRevealOutcome = guess === card.rank ? "lose" : "win";
+
+  setRevealedCardContent(card);
+  setButtonsEnabled(false);
+  setResult("Final card: reveal it", "neutral");
+  el.cardText.textContent = "Drag the card to reveal the final card.";
+
+  el.finalRevealOverlay.classList.add("active");
+  el.finalRevealOverlay.setAttribute("aria-hidden", "false");
+
+  el.card.classList.remove("pulse", "revealed", "discarding", "lose-flip", "show-next-card", "show-front-face", "win-glow", "shake");
+  el.card.classList.add("face-down", "final-reveal-active");
+  setFinalRevealAngle(0);
+
+  if (state.finalRevealReducedMotion) {
+    el.cardText.textContent = "Tap the card to reveal the final card.";
+    el.card.removeEventListener("click", triggerReducedMotionFinalReveal);
+    el.card.addEventListener("click", triggerReducedMotionFinalReveal, { once: true });
+  }
 }
 
 function playNewGameShuffleAnimation() {
@@ -392,8 +665,9 @@ function revealCard(card) {
 }
 
 function hideCard() {
-  el.card.classList.remove("revealed", "shake", "win-glow", "discarding", "lose-flip", "show-next-card", "show-front-face");
+  el.card.classList.remove("revealed", "shake", "win-glow", "discarding", "lose-flip", "show-next-card", "show-front-face", "final-reveal-active", "final-reveal-locked", "is-dragging", "final-reveal-victory");
   el.card.classList.add("face-down", "pulse");
+  el.card.style.removeProperty("--final-flip-angle");
   el.rank.textContent = "?";
   el.suits.forEach((suit) => {
     suit.textContent = "\u2660";
@@ -517,9 +791,14 @@ function runSafeDiscardAnimation(guessed) {
 }
 
 function handleGuess(guess) {
-  if (state.gameOver || state.isAnimating || state.settingsOpen) return;
+  if (state.gameOver || state.isAnimating || state.settingsOpen || state.finalRevealActive) return;
 
   const card = state.deck[state.index];
+
+  if (state.index === 51) {
+    startFinalReveal(card, guess);
+    return;
+  }
 
   if (guess === card.rank) {
     lose(card, guess);
@@ -533,6 +812,9 @@ function handleGuess(guess) {
 function newGame() {
   clearDiscardTimer();
   clearLoseTimer();
+  resetFinalRevealState();
+  sounds.finalLoss.pause();
+  sounds.finalLoss.currentTime = 0;
   state.sessionId += 1;
 
   if (state.hasStarted) {
@@ -590,6 +872,22 @@ closeAllSettingsSections();
 setupSectionToggle("mode");
 setupSectionToggle("cardDesign");
 setupSectionToggle("volume");
+
+el.card.addEventListener("pointerdown", handleFinalRevealPointerDown);
+window.addEventListener("pointermove", handleFinalRevealPointerMove);
+window.addEventListener("pointerup", finishFinalRevealPointer);
+window.addEventListener("pointercancel", finishFinalRevealPointer);
+
+const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+if (reducedMotionQuery.addEventListener) {
+  reducedMotionQuery.addEventListener("change", (event) => {
+    state.finalRevealReducedMotion = event.matches;
+  });
+} else {
+  reducedMotionQuery.addListener((event) => {
+    state.finalRevealReducedMotion = event.matches;
+  });
+}
 
 el.sfxToggle.addEventListener("click", () => {
   state.sfxEnabled = !state.sfxEnabled;
