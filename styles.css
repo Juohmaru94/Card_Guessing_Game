@@ -404,7 +404,11 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 .hero-card.win-pulse {
-  animation: heroWinPulse 700ms ease-in-out 3;
+  animation: heroWinPulse 900ms ease-in-out infinite;
+}
+
+.hero-card.loss-pulse {
+  animation: heroLossPulse 900ms ease-in-out infinite;
 }
 
 @keyframes heroWinPulse {
@@ -413,6 +417,15 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   }
   50% {
     filter: drop-shadow(0 0 24px rgba(84, 255, 160, 0.95));
+  }
+}
+
+@keyframes heroLossPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 0 rgba(255, 94, 116, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 24px rgba(255, 94, 116, 0.95));
   }
 }
 
@@ -429,6 +442,14 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   animation: heroShockwave 1200ms ease-out forwards;
   pointer-events: none;
   z-index: -1;
+}
+
+.hero-ring-win {
+  border-color: rgba(84, 255, 160, 0.9);
+}
+
+.hero-ring-loss {
+  border-color: rgba(255, 94, 116, 0.9);
 }
 
 @keyframes heroShockwave {
@@ -753,6 +774,10 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   }
 
   .hero-card.win-pulse {
-    animation: heroWinPulse 1200ms ease-in-out 1;
+    animation: heroWinPulse 1500ms ease-in-out infinite;
+  }
+
+  .hero-card.loss-pulse {
+    animation: heroLossPulse 1500ms ease-in-out infinite;
   }
 }
