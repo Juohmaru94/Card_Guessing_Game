@@ -85,10 +85,21 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
 }
 
 .label { display: block; font-size: .8rem; color: #c2ceff; }
-.value { font-size: 1.1rem; font-weight: 700; }
+.value {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  min-height: 1.4em;
+}
 .value.good { color: var(--good); }
 .value.bad { color: var(--bad); }
 .value.neutral { color: var(--neutral); }
+
+#result {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .table-area {
   position: relative;
@@ -240,7 +251,17 @@ h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
   50% { filter: drop-shadow(0 0 20px rgba(53,208,127,.8)); }
 }
 
-.card-text { margin: 0; color: #d3dcff; text-align: center; }
+.card-text {
+  margin: 0;
+  color: #d3dcff;
+  text-align: center;
+  min-height: 2.8em;
+  max-height: 2.8em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
 
 .card.discarding .back {
   animation: discardTopCard 540ms ease-in forwards;
