@@ -4,6 +4,10 @@ const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 const redSuits = new Set(["\u2665", "\u2666"]);
 const loseFlipDurationMs = 400;
 const loseFlipSoundDelayMs = 440;
+const finalRevealDimDurationMs = 800;
+const finalRevealScaleDurationMs = 600;
+const finalRevealFlipDurationMs = 1500;
+const finalRevealSlamDurationMs = 300;
 const cardDesigns = [
   { label: "Slime", file: "back_images/backcard.png" },
   { label: "Blood Daggers", file: "back_images/backcard2.png" },
@@ -271,16 +275,15 @@ function setHeroCardContent(card) {
 }
 
 function showFinalRevealOverlay() {
-  el.finalRevealOverlay.classList.remove("settled");
   el.finalRevealOverlay.classList.add("active");
   el.finalRevealOverlay.setAttribute("aria-hidden", "false");
 }
 
 function hideFinalRevealOverlay() {
   clearFinalRevealPulses();
-  el.finalRevealOverlay.classList.remove("active", "settled");
+  el.finalRevealOverlay.classList.remove("active", "settled", "dimmed");
   el.finalRevealOverlay.setAttribute("aria-hidden", "true");
-  el.heroCard.classList.remove("final-flip", "revealed", "win-pulse", "loss-pulse");
+  el.heroCard.classList.remove("final-flip", "revealed", "win-pulse", "loss-pulse", "scale-up", "slam-back");
   el.heroCard.classList.add("face-down");
   el.heroCard.removeAttribute("data-outcome");
   el.card.classList.remove("final-reveal-hidden");
@@ -344,27 +347,46 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
   setGameInputsDisabled(true);
 
   setHeroCardContent(cardData);
-  el.heroCard.classList.remove("revealed", "final-flip", "win-pulse", "loss-pulse");
+  el.heroCard.classList.remove("revealed", "final-flip", "win-pulse", "loss-pulse", "scale-up", "slam-back");
   el.heroCard.classList.add("face-down");
   el.card.classList.add("final-reveal-hidden");
   el.cardText.textContent = "";
 
   try {
     showFinalRevealOverlay();
-    await wait(800);
+    // Step 1: Dim background to 75% black over 1200ms.
+    void el.finalRevealOverlay.offsetWidth;
+    el.finalRevealOverlay.classList.add("dimmed");
+    await wait(finalRevealDimDurationMs);
 
     if (revealSessionId !== state.sessionId) return;
 
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const flipDuration = reducedMotion ? 840 : 1500;
+    // Step 2: Scale hero card up over 600ms.
+    el.heroCard.classList.add("scale-up");
+    await wait(finalRevealScaleDurationMs);
 
+    if (revealSessionId !== state.sessionId) return;
+
+    // Step 3: Flip card over 1500ms.
     el.heroCard.classList.add("final-flip");
     // Force style flush so the browser always animates face-down -> revealed.
     void el.heroCard.offsetWidth;
     el.heroCard.classList.remove("face-down");
     el.heroCard.classList.add("revealed");
 
-    await wait(flipDuration + 20);
+    await wait(finalRevealFlipDurationMs + 20);
+
+    if (revealSessionId !== state.sessionId) return;
+
+    // Step 4: Slam card back, undim background, then start pulses.
+    el.heroCard.classList.remove("scale-up");
+    el.heroCard.classList.add("slam-back");
+    el.finalRevealOverlay.classList.remove("dimmed");
+    await wait(finalRevealSlamDurationMs);
+
+    if (revealSessionId !== state.sessionId) return;
+
+    el.heroCard.classList.remove("slam-back");
 
     if (revealSessionId !== state.sessionId) return;
 
@@ -379,8 +401,6 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
       playOutcomeSound("loss");
       runFinalRevealPulses("loss");
     }
-
-    el.finalRevealOverlay.classList.add("settled");
   } finally {
     if (revealSessionId === state.sessionId) {
       setGameInputsDisabled(false);
