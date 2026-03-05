@@ -375,17 +375,21 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   opacity: 0;
   pointer-events: none;
   background: rgba(4, 10, 20, 0);
-  transition: opacity 260ms ease, background-color 260ms ease;
+  transition: opacity 220ms ease, background-color 800ms ease;
 }
 
 .final-reveal-overlay.active {
   opacity: 1;
   pointer-events: none;
-  background: rgba(4, 10, 20, 0.45);
+  background: rgba(4, 10, 20, 0);
+}
+
+.final-reveal-overlay.dimmed {
+  background: rgba(0, 0, 0, 0.75);
 }
 
 .final-reveal-overlay.settled {
-  background: rgba(4, 10, 20, 0.08);
+  background: rgba(4, 10, 20, 0);
 }
 
 .hero-card {
@@ -393,7 +397,7 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   width: min(250px, 44vw);
   aspect-ratio: 5/7;
   transform: translateY(8px) scale(0.94);
-  transition: transform 360ms ease;
+  transition: transform 600ms ease;
 }
 
 .hero-card-inner {
@@ -406,6 +410,14 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 
 .final-reveal-overlay.active .hero-card {
   transform: translateY(0) scale(1);
+}
+
+.hero-card.scale-up {
+  transform: translateY(0) scale(1.12);
+}
+
+.hero-card.slam-back {
+  animation: heroCardSlam 300ms cubic-bezier(.22, .61, .36, 1) forwards;
 }
 
 .hero-card .front {
@@ -447,6 +459,18 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   }
   50% {
     filter: drop-shadow(0 0 24px rgba(255, 94, 116, 0.95));
+  }
+}
+
+@keyframes heroCardSlam {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  60% {
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -782,18 +806,6 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-card.final-flip .hero-card-inner {
-    transition: opacity 320ms ease;
-  }
-
-  .hero-card.face-down {
-    opacity: 0.75;
-  }
-
-  .hero-card.revealed {
-    opacity: 1;
-  }
-
   .hero-card.win-pulse {
     animation: heroWinPulse 1500ms ease-in-out infinite;
   }
