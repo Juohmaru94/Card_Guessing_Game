@@ -34,6 +34,8 @@ const state = {
   musicEnabled: true,
   sfxVolume: 1,
   musicVolume: 1,
+  appliedSfxVolume: 1,
+  appliedMusicVolume: 1,
   pendingSfxVolume: 1,
   pendingMusicVolume: 1,
   lastOutcome: null,
@@ -205,8 +207,8 @@ function setPendingVolume(type, value, options = {}) {
 function syncSettingsDraftFromApplied() {
   setMode(state.activeMode);
   applyCardBackDesign(state.appliedCardBack);
-  setPendingVolume("music", state.musicVolume, { preview: true });
-  setPendingVolume("sfx", state.sfxVolume, { preview: true });
+  setPendingVolume("music", state.appliedMusicVolume, { preview: true });
+  setPendingVolume("sfx", state.appliedSfxVolume, { preview: true });
 }
 
 function discardSettingsChanges() {
@@ -232,6 +234,8 @@ async function applyConfirmedSettings() {
   state.appliedCardBack = state.selectedCardBack;
   state.musicVolume = state.pendingMusicVolume;
   state.sfxVolume = state.pendingSfxVolume;
+  state.appliedMusicVolume = state.pendingMusicVolume;
+  state.appliedSfxVolume = state.pendingSfxVolume;
 
   updateMusicPlayback();
   applySfxVolume();
@@ -239,6 +243,8 @@ async function applyConfirmedSettings() {
   updateModeUI();
 
   if (modeChanged) {
+    state.streakSafeCount = 0;
+    updateStats();
     await startNewGameSequence({ resetStreak: true });
     return;
   }
