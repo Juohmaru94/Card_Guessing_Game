@@ -93,6 +93,7 @@ const sounds = {
   win: new Audio("Sounds/Winning_sound.mp3"),
   finalLoss: new Audio("Sounds/final_card_loss.mp3"),
   newGame: new Audio("Sounds/new_game_sound.mp3"),
+  shuffle: new Audio("Sounds/shuffle-cards.mp3"),
 };
 
 const musicTrack = new Audio("Music/Ruby.mp3");
@@ -127,14 +128,27 @@ function buildDeck() {
 
 function makeButtons() {
   el.grid.innerHTML = "";
-  ranks.forEach((rank) => {
+  const topRow = document.createElement("div");
+  topRow.className = "guess-row guess-row-top";
+
+  const bottomRow = document.createElement("div");
+  bottomRow.className = "guess-row guess-row-bottom";
+
+  ranks.forEach((rank, index) => {
     const btn = document.createElement("button");
     btn.className = "guess-btn";
-    btn.textContent = rank;
     btn.type = "button";
+    btn.innerHTML = `<span class="guess-rank">${rank}</span>`;
     btn.addEventListener("click", () => handleGuess(rank));
-    el.grid.appendChild(btn);
+
+    if (index < 7) {
+      topRow.appendChild(btn);
+    } else {
+      bottomRow.appendChild(btn);
+    }
   });
+
+  el.grid.append(topRow, bottomRow);
 }
 
 function setMode(mode) {
@@ -536,6 +550,7 @@ function easeOutCubic(value) {
 }
 
 function playNewGameShuffleAnimation() {
+  playSound("shuffle");
   const cardCount = 12 + Math.floor(Math.random() * 5);
   const cards = [];
   const fanState = [];
@@ -702,7 +717,7 @@ function hideCard() {
     suit.textContent = "\u2660";
   });
   el.front.classList.remove("red-suit");
-  el.cardText.textContent = "Face down card waiting";
+  el.cardText.textContent = "Awaiting your guess...";
 }
 
 function updateStats() {
