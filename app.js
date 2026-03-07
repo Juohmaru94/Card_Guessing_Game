@@ -25,6 +25,11 @@ const state = {
   settingsOpen: false,
   settingsClosing: false,
   settingsCloseResolver: null,
+  leaderboardOpen: false,
+  identityModalOpen: false,
+  playerIdentity: null,
+  identityPromptMode: "setup",
+  lastSeenTouchAt: 0,
   modeSectionOpen: false,
   cardDesignSectionOpen: false,
   volumeSectionOpen: false,
@@ -61,6 +66,11 @@ const el = {
   result: document.getElementById("result"),
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
+  leaderboardToggle: document.getElementById("leaderboard-toggle"),
+  leaderboardOverlay: document.getElementById("leaderboard-overlay"),
+  leaderboardClose: document.getElementById("leaderboard-close"),
+  leaderboardClassicList: document.getElementById("leaderboard-classic-list"),
+  leaderboardStreakList: document.getElementById("leaderboard-streak-list"),
   sfxToggle: document.getElementById("sfx-toggle"),
   musicToggle: document.getElementById("music-toggle"),
   settingsToggle: document.getElementById("settings-toggle"),
@@ -85,6 +95,17 @@ const el = {
   musicVolumeValue: document.getElementById("music-volume-value"),
   sfxVolume: document.getElementById("sfx-volume"),
   sfxVolumeValue: document.getElementById("sfx-volume-value"),
+  identityOverlay: document.getElementById("identity-overlay"),
+  identityTitle: document.getElementById("identity-title"),
+  identityDescription: document.getElementById("identity-description"),
+  identityForm: document.getElementById("identity-form"),
+  identityLabel: document.getElementById("identity-label"),
+  identityUsername: document.getElementById("identity-username"),
+  identityError: document.getElementById("identity-error"),
+  identityContinue: document.getElementById("identity-continue"),
+  identityChange: document.getElementById("identity-change"),
+  identityCancelChange: document.getElementById("identity-cancel-change"),
+  identitySave: document.getElementById("identity-save"),
 };
 
 const sounds = {
@@ -109,6 +130,9 @@ const sectionConfig = {
 Object.values(sounds).forEach((sound) => {
   sound.preload = "auto";
 });
+
+const identityService = window.TheTrialIdentity.createService();
+const leaderboardService = window.TheTrialLeaderboard.createService();
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i -= 1) {
@@ -195,6 +219,181 @@ function applyCardBackDesign(cardImagePath) {
     option.classList.toggle("selected", isSelected);
     option.setAttribute("aria-checked", String(isSelected));
   });
+}
+
+function syncModalBodyLock() {
+  const modalOpen = state.settingsOpen || state.settingsClosing || state.leaderboardOpen || state.identityModalOpen;
+  document.body.classList.toggle("modal-open", modalOpen);
+}
+
+function setIdentityError(message = "") {
+  el.identityError.textContent = message;
+}
+
+function setIdentityModalOpen(open) {
+  state.identityModalOpen = open;
+  el.identityOverlay.hidden = !open;
+  syncModalBodyLock();
+}
+
+function setIdentityPromptMode(mode) {
+  state.identityPromptMode = mode;
+  const currentUsername = state.playerIdentity?.username ?? "";
+
+  setIdentityError("");
+  el.identityLabel.hidden = mode === "return";
+  el.identityUsername.hidden = mode === "return";
+  el.identityUsername.disabled = mode === "return";
+  el.identitySave.hidden = mode === "return";
+  el.identityContinue.hidden = mode !== "return";
+  el.identityChange.hidden = mode !== "return";
+  el.identityCancelChange.hidden = mode !== "change";
+
+  if (mode === "setup") {
+    el.identityTitle.textContent = "Choose a username";
+    el.identityDescription.textContent = "Set your display name for leaderboards and competitive tracking.";
+    el.identitySave.textContent = "Save username";
+    el.identityUsername.value = "";
+    return;
+  }
+
+  if (mode === "change") {
+    el.identityTitle.textContent = "Change username";
+    el.identityDescription.textContent = "Update the display name tied to your player identity.";
+    el.identitySave.textContent = "Save username";
+    el.identityUsername.value = currentUsername;
+    requestAnimationFrame(() => el.identityUsername.focus());
+    return;
+  }
+
+  el.identityTitle.textContent = "Welcome back";
+  el.identityDescription.textContent = "You were away for more than 2 hours. Continue with your saved identity or choose a new display name.";
+  el.identityContinue.textContent = `Continue as ${currentUsername}`;
+}
+
+function adoptPlayerIdentity(identity) {
+  state.playerIdentity = identity;
+  state.lastSeenTouchAt = Date.now();
+}
+
+async function syncPlayerProfile() {
+  if (!state.playerIdentity) return;
+
+  await leaderboardService.savePlayerProfile({
+    playerId: state.playerIdentity.playerId,
+    username: state.playerIdentity.username,
+  });
+}
+
+function markPlayerSeen(force = false) {
+  if (!state.playerIdentity) return;
+  if (state.identityModalOpen && state.identityPromptMode === "return") return;
+
+  const now = Date.now();
+  if (!force && now - state.lastSeenTouchAt < 60_000) return;
+
+  adoptPlayerIdentity(identityService.touchLastSeen(state.playerIdentity));
+}
+
+function createLeaderboardItem(record, scoreKey) {
+  const item = document.createElement("li");
+  item.className = "leaderboard-item";
+
+  if (record.playerId === state.playerIdentity?.playerId) {
+    item.classList.add("is-self");
+  }
+
+  const name = document.createElement("span");
+  name.className = "leaderboard-name";
+  name.textContent = record.username;
+
+  const score = document.createElement("span");
+  score.className = "leaderboard-score";
+  score.textContent = String(record[scoreKey]);
+
+  item.append(name, score);
+  return item;
+}
+
+function renderLeaderboardList(listElement, records, scoreKey) {
+  listElement.innerHTML = "";
+
+  if (!records.length) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "leaderboard-empty";
+    emptyItem.textContent = "No scores yet.";
+    listElement.appendChild(emptyItem);
+    return;
+  }
+
+  records.forEach((record) => {
+    listElement.appendChild(createLeaderboardItem(record, scoreKey));
+  });
+}
+
+async function refreshLeaderboards() {
+  const leaderboards = await leaderboardService.fetchLeaderboards(10);
+  renderLeaderboardList(el.leaderboardClassicList, leaderboards.classic, "classicWins");
+  renderLeaderboardList(el.leaderboardStreakList, leaderboards.streak, "bestStreak");
+}
+
+async function recordClassicWin() {
+  if (!state.playerIdentity) return;
+
+  await leaderboardService.saveClassicWin({
+    playerId: state.playerIdentity.playerId,
+    username: state.playerIdentity.username,
+  });
+
+  if (state.leaderboardOpen) {
+    await refreshLeaderboards();
+  }
+}
+
+async function recordBestStreakIfNeeded(streakValue) {
+  if (!state.playerIdentity || streakValue <= 0) return;
+
+  await leaderboardService.saveBestStreak({
+    playerId: state.playerIdentity.playerId,
+    username: state.playerIdentity.username,
+    streak: streakValue,
+  });
+
+  if (state.leaderboardOpen) {
+    await refreshLeaderboards();
+  }
+}
+
+function setLeaderboardOpen(open) {
+  state.leaderboardOpen = open;
+  el.leaderboardOverlay.hidden = !open;
+  syncModalBodyLock();
+
+  if (open) {
+    void refreshLeaderboards();
+  }
+}
+
+function initializeIdentityFlow() {
+  const storedIdentity = identityService.getStoredIdentity();
+
+  if (!storedIdentity) {
+    setIdentityPromptMode("setup");
+    setIdentityModalOpen(true);
+    requestAnimationFrame(() => el.identityUsername.focus());
+    return;
+  }
+
+  adoptPlayerIdentity(storedIdentity);
+
+  if (identityService.shouldPromptForReturn(storedIdentity)) {
+    setIdentityPromptMode("return");
+    setIdentityModalOpen(true);
+    return;
+  }
+
+  markPlayerSeen(true);
+  void syncPlayerProfile();
 }
 
 function setPendingVolume(type, value, options = {}) {
@@ -319,8 +518,7 @@ function setSettingsOpen(open) {
     state.settingsClosing = true;
     el.settingsOverlay.classList.add("is-closing");
   }
-
-  document.body.classList.toggle("modal-open", open);
+  syncModalBodyLock();
 }
 
 function finishSettingsCloseAnimation() {
@@ -329,6 +527,7 @@ function finishSettingsCloseAnimation() {
   state.settingsOpen = false;
   el.settingsOverlay.classList.remove("is-closing");
   el.settingsOverlay.hidden = true;
+  syncModalBodyLock();
 
   if (typeof state.settingsCloseResolver === "function") {
     state.settingsCloseResolver();
@@ -368,6 +567,7 @@ function setButtonsEnabled(enabled) {
 function setGameInputsDisabled(disabled) {
   const controls = [
     el.restart,
+    el.leaderboardToggle,
     el.sfxToggle,
     el.musicToggle,
     el.settingsToggle,
@@ -815,6 +1015,10 @@ function win(options = {}) {
     playSound("win");
   }
 
+  if (state.activeMode === "classic") {
+    void recordClassicWin();
+  }
+
   state.isAnimating = false;
 }
 
@@ -850,6 +1054,7 @@ function runSafeDiscardAnimation(guessed) {
     state.index += 1;
     if (state.activeMode === "streak") {
       state.streakSafeCount += 1;
+      void recordBestStreakIfNeeded(state.streakSafeCount);
     }
     updateStats();
 
@@ -872,7 +1077,7 @@ function runSafeDiscardAnimation(guessed) {
 }
 
 function handleGuess(guess) {
-  if (state.gameOver || state.isAnimating || state.settingsOpen || state.finalRevealActive) return;
+  if (state.gameOver || state.isAnimating || state.settingsOpen || state.leaderboardOpen || state.identityModalOpen || state.finalRevealActive) return;
 
   const card = state.deck[state.index];
 
@@ -1033,8 +1238,56 @@ el.settingsOverlay.addEventListener("animationend", (event) => {
   }
 });
 
+el.leaderboardToggle.addEventListener("click", () => {
+  setLeaderboardOpen(true);
+});
+
+el.leaderboardClose.addEventListener("click", () => {
+  setLeaderboardOpen(false);
+});
+
+el.leaderboardOverlay.addEventListener("click", (event) => {
+  if (event.target === el.leaderboardOverlay) {
+    setLeaderboardOpen(false);
+  }
+});
+
+el.identityContinue.addEventListener("click", () => {
+  markPlayerSeen(true);
+  setIdentityModalOpen(false);
+});
+
+el.identityChange.addEventListener("click", () => {
+  setIdentityPromptMode("change");
+});
+
+el.identityCancelChange.addEventListener("click", () => {
+  setIdentityPromptMode("return");
+});
+
+el.identityForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const validation = identityService.validateUsername(el.identityUsername.value);
+  if (!validation.valid) {
+    setIdentityError(validation.error);
+    return;
+  }
+
+  let identity;
+  if (state.identityPromptMode === "change" && state.playerIdentity) {
+    identity = identityService.updateUsername(state.playerIdentity, validation.normalized);
+  } else {
+    identity = identityService.createIdentity(validation.normalized);
+  }
+
+  adoptPlayerIdentity(identity);
+  await syncPlayerProfile();
+  setIdentityModalOpen(false);
+});
+
 el.restart.addEventListener("click", async () => {
-  if (state.isAnimating || state.settingsOpen) return;
+  if (state.isAnimating || state.settingsOpen || state.leaderboardOpen || state.identityModalOpen) return;
   await startNewGameSequence();
 });
 
@@ -1046,6 +1299,16 @@ const unlockMusic = () => {
 
 document.addEventListener("pointerdown", unlockMusic, { once: true });
 document.addEventListener("keydown", unlockMusic, { once: true });
+document.addEventListener("pointerdown", () => markPlayerSeen());
+document.addEventListener("keydown", () => markPlayerSeen());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    markPlayerSeen(true);
+  }
+});
+window.addEventListener("beforeunload", () => {
+  markPlayerSeen(true);
+});
 
 function initializePreGameState() {
   updateModeUI();
@@ -1058,3 +1321,4 @@ function initializePreGameState() {
 }
 
 initializePreGameState();
+initializeIdentityFlow();

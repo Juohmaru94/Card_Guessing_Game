@@ -648,6 +648,12 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   margin: 0;
 }
 
+.modal-subtitle {
+  margin: .35rem 0 0;
+  color: #cfd8ff;
+  font-size: .92rem;
+}
+
 .settings-content {
   display: grid;
   gap: .55rem;
@@ -667,6 +673,119 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 
 .settings-confirm-btn:hover {
   background: linear-gradient(145deg, #3de58a, #22a3bb);
+}
+
+.leaderboard-modal,
+.identity-modal {
+  width: min(520px, 94vw);
+}
+
+.leaderboard-panels {
+  display: grid;
+  gap: .85rem;
+}
+
+.leaderboard-panel {
+  border: 1px solid rgba(215, 226, 255, 0.18);
+  border-radius: 14px;
+  padding: .9rem;
+  background: rgba(17, 26, 52, 0.72);
+}
+
+.leaderboard-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .8rem;
+  margin-bottom: .7rem;
+}
+
+.leaderboard-panel-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.leaderboard-panel-header span {
+  color: #c7d7ff;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.leaderboard-list {
+  margin: 0;
+  padding-left: 1.35rem;
+  display: grid;
+  gap: .45rem;
+}
+
+.leaderboard-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .75rem;
+  align-items: center;
+  color: #edf2ff;
+}
+
+.leaderboard-item.is-self .leaderboard-name {
+  color: #9fe8ff;
+}
+
+.leaderboard-name {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard-score {
+  color: #fff3c1;
+  font-weight: 800;
+}
+
+.leaderboard-empty {
+  list-style: none;
+  margin-left: -1.35rem;
+  color: #cfd8ff;
+}
+
+.identity-form {
+  display: grid;
+  gap: .8rem;
+}
+
+.identity-label {
+  color: #eaf0ff;
+  font-size: .94rem;
+  font-weight: 700;
+}
+
+.identity-input {
+  width: 100%;
+  border: 1px solid rgba(185, 206, 245, 0.35);
+  border-radius: 12px;
+  background: rgba(11, 18, 34, 0.65);
+  color: #f5f8ff;
+  padding: .8rem .9rem;
+  font: inherit;
+}
+
+.identity-input:focus {
+  outline: 2px solid rgba(138, 181, 255, 0.55);
+  outline-offset: 2px;
+}
+
+.identity-error {
+  margin: 0;
+  min-height: 1.3em;
+  color: #ff8e9e;
+  font-size: .88rem;
+}
+
+.identity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .6rem;
 }
 
 .settings-content label {
