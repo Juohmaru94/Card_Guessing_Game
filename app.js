@@ -24,19 +24,27 @@ const state = {
   hasStarted: false,
   settingsOpen: false,
   settingsClosing: false,
+  settingsCloseResolver: null,
   modeSectionOpen: false,
   cardDesignSectionOpen: false,
   volumeSectionOpen: false,
+  activeMode: "classic",
   selectedMode: "classic",
   sfxEnabled: true,
   musicEnabled: true,
   sfxVolume: 1,
   musicVolume: 1,
+  appliedSfxVolume: 1,
+  appliedMusicVolume: 1,
+  pendingSfxVolume: 1,
+  pendingMusicVolume: 1,
   lastOutcome: null,
+  appliedCardBack: cardDesigns[0].file,
   selectedCardBack: cardDesigns[0].file,
   finalRevealActive: false,
   finalRevealSessionId: 0,
   finalPulseInterval: null,
+  streakSafeCount: 0,
 };
 
 const el = {
@@ -47,7 +55,9 @@ const el = {
   cardText: document.getElementById("card-text"),
   shuffleLayer: document.getElementById("shuffle-layer"),
   remaining: document.getElementById("remaining"),
+  remainingLabel: document.getElementById("remaining-label"),
   round: document.getElementById("round"),
+  progressLabel: document.getElementById("progress-label"),
   result: document.getElementById("result"),
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
@@ -59,7 +69,10 @@ const el = {
   heroCard: document.getElementById("hero-card"),
   heroCardRank: document.getElementById("hero-card-rank"),
   heroSuits: [...document.querySelectorAll("[data-hero-suit]")],
+  modeTitle: document.getElementById("mode-title"),
+  modeSubtitle: document.getElementById("mode-subtitle"),
   settingsClose: document.getElementById("settings-close"),
+  settingsConfirm: document.getElementById("settings-confirm"),
   modeToggle: document.getElementById("mode-toggle"),
   modePanel: document.getElementById("mode-panel"),
   modeOptions: document.getElementById("mode-options"),
@@ -170,9 +183,87 @@ function applyCardBackDesign(cardImagePath) {
   });
 }
 
-function setSectionOpen(sectionName, open) {
+function setPendingVolume(type, value, options = {}) {
+  const { preview = true } = options;
+  const normalizedValue = clamp01(value);
+
+  if (type === "music") {
+    state.pendingMusicVolume = normalizedValue;
+    if (preview) {
+      state.musicVolume = normalizedValue;
+      updateMusicPlayback();
+    }
+  } else if (type === "sfx") {
+    state.pendingSfxVolume = normalizedValue;
+    if (preview) {
+      state.sfxVolume = normalizedValue;
+      applySfxVolume();
+    }
+  }
+
+  updateVolumeUI();
+}
+
+function syncSettingsDraftFromApplied() {
+  setMode(state.activeMode);
+  applyCardBackDesign(state.appliedCardBack);
+  setPendingVolume("music", state.appliedMusicVolume, { preview: true });
+  setPendingVolume("sfx", state.appliedSfxVolume, { preview: true });
+}
+
+function discardSettingsChanges() {
+  syncSettingsDraftFromApplied();
+}
+
+function updateModeUI() {
+  const isStreakMode = state.activeMode === "streak";
+  el.modeTitle.textContent = isStreakMode ? "Streak Mode" : "Classic Mode";
+  el.modeSubtitle.textContent = isStreakMode
+    ? "Survive as many cards as possible by never guessing the exact card value."
+    : "Survive all 52 cards by never guessing the exact card value.";
+
+  el.remainingLabel.textContent = isStreakMode ? "" : "Cards Remaining";
+  el.progressLabel.textContent = isStreakMode ? "Streak" : "Round";
+}
+
+async function applyConfirmedSettings() {
+  const previousMode = state.activeMode;
+  const modeChanged = state.selectedMode !== previousMode;
+
+  state.activeMode = state.selectedMode;
+  state.appliedCardBack = state.selectedCardBack;
+  state.musicVolume = state.pendingMusicVolume;
+  state.sfxVolume = state.pendingSfxVolume;
+  state.appliedMusicVolume = state.pendingMusicVolume;
+  state.appliedSfxVolume = state.pendingSfxVolume;
+
+  updateMusicPlayback();
+  applySfxVolume();
+  updateVolumeUI();
+  updateModeUI();
+
+  if (modeChanged) {
+    state.streakSafeCount = 0;
+    updateStats();
+    await startNewGameSequence({ resetStreak: true });
+    return;
+  }
+
+  updateStats();
+}
+
+function setSectionOpen(sectionName, open, options = {}) {
   const section = sectionConfig[sectionName];
+  const { closeOthers = true } = options;
   if (!section) return;
+
+  if (open && closeOthers) {
+    Object.keys(sectionConfig).forEach((name) => {
+      if (name !== sectionName) {
+        setSectionOpen(name, false, { closeOthers: false });
+      }
+    });
+  }
 
   state[section.stateKey] = open;
   section.toggle.setAttribute("aria-expanded", String(open));
@@ -197,9 +288,9 @@ function setSectionOpen(sectionName, open) {
 }
 
 function closeAllSettingsSections() {
-  setSectionOpen("mode", false);
-  setSectionOpen("cardDesign", false);
-  setSectionOpen("volume", false);
+  setSectionOpen("mode", false, { closeOthers: false });
+  setSectionOpen("cardDesign", false, { closeOthers: false });
+  setSectionOpen("volume", false, { closeOthers: false });
 }
 
 function setSettingsOpen(open) {
@@ -208,6 +299,7 @@ function setSettingsOpen(open) {
     state.settingsClosing = false;
     el.settingsOverlay.hidden = false;
     el.settingsOverlay.classList.remove("is-closing");
+    syncSettingsDraftFromApplied();
     closeAllSettingsSections();
   } else if (state.settingsOpen) {
     state.settingsClosing = true;
@@ -223,6 +315,29 @@ function finishSettingsCloseAnimation() {
   state.settingsOpen = false;
   el.settingsOverlay.classList.remove("is-closing");
   el.settingsOverlay.hidden = true;
+
+  if (typeof state.settingsCloseResolver === "function") {
+    state.settingsCloseResolver();
+    state.settingsCloseResolver = null;
+  }
+}
+
+function closeSettingsModal(options = {}) {
+  const { discard = false } = options;
+
+  if (!state.settingsOpen) return Promise.resolve();
+  if (discard) {
+    discardSettingsChanges();
+  }
+
+  if (state.settingsClosing) {
+    return Promise.resolve();
+  }
+
+  setSettingsOpen(false);
+  return new Promise((resolve) => {
+    state.settingsCloseResolver = resolve;
+  });
 }
 
 function setResult(message, type = "neutral") {
@@ -243,6 +358,7 @@ function setGameInputsDisabled(disabled) {
     el.musicToggle,
     el.settingsToggle,
     el.settingsClose,
+    el.settingsConfirm,
     el.modeToggle,
     el.cardDesignToggle,
     el.volumeToggle,
@@ -549,8 +665,8 @@ function updateMusicToggleButton() {
 }
 
 function updateVolumeUI() {
-  const musicPercent = Math.round(state.musicVolume * 100);
-  const sfxPercent = Math.round(state.sfxVolume * 100);
+  const musicPercent = Math.round(state.pendingMusicVolume * 100);
+  const sfxPercent = Math.round(state.pendingSfxVolume * 100);
 
   el.musicVolume.value = String(musicPercent);
   el.musicVolumeValue.textContent = `${musicPercent}%`;
@@ -590,6 +706,12 @@ function hideCard() {
 }
 
 function updateStats() {
+  if (state.activeMode === "streak") {
+    el.remaining.textContent = "";
+    el.round.textContent = String(state.streakSafeCount);
+    return;
+  }
+
   const remaining = Math.max(52 - state.index, 0);
   el.remaining.textContent = String(remaining);
   el.round.textContent = `${Math.min(state.index + 1, 52)} / 52`;
@@ -711,10 +833,17 @@ function runSafeDiscardAnimation(guessed) {
 
     state.discardTimer = null;
     state.index += 1;
+    if (state.activeMode === "streak") {
+      state.streakSafeCount += 1;
+    }
     updateStats();
 
     if (state.index >= 52) {
       el.card.classList.remove("discarding", "show-next-card");
+      if (state.activeMode === "streak") {
+        startNextStreakDeck();
+        return;
+      }
       win();
       return;
     }
@@ -732,7 +861,7 @@ function handleGuess(guess) {
 
   const card = state.deck[state.index];
 
-  if (state.index === 51) {
+  if (state.activeMode === "classic" && state.index === 51) {
     const outcome = guess === card.rank ? "loss" : "win";
     startFinalRevealSequence({ outcome, cardData: card, guessed: guess });
     return;
@@ -747,7 +876,37 @@ function handleGuess(guess) {
   runSafeDiscardAnimation(guess);
 }
 
-function newGame() {
+function startNextStreakDeck() {
+  state.deck = buildDeck();
+  state.index = 0;
+  state.gameOver = false;
+  state.isAnimating = false;
+  hideCard();
+  updateStats();
+  setButtonsEnabled(true);
+  setResult("Make your guess", "neutral");
+  el.cardText.textContent = "Streak continues. New deck shuffled.";
+  playSound("newGame");
+}
+
+async function startNewGameSequence(options = {}) {
+  const { resetStreak = true } = options;
+
+  clearDiscardTimer();
+  clearLoseTimer();
+  hideFinalRevealOverlay();
+  state.sessionId += 1;
+  state.isAnimating = true;
+  setButtonsEnabled(false);
+  el.cardText.textContent = "Shuffling";
+
+  await playNewGameShuffleAnimation();
+  newGame({ resetStreak });
+}
+
+function newGame(options = {}) {
+  const { resetStreak = true } = options;
+
   clearDiscardTimer();
   clearLoseTimer();
   state.sessionId += 1;
@@ -760,6 +919,9 @@ function newGame() {
   state.gameOver = false;
   state.isAnimating = false;
   state.finalRevealActive = false;
+  if (resetStreak) {
+    state.streakSafeCount = 0;
+  }
 
   hideFinalRevealOverlay();
 
@@ -773,6 +935,7 @@ function newGame() {
   });
   setButtonsEnabled(true);
   setResult("Make your guess", "neutral");
+  updateModeUI();
   updateStats();
   state.lastOutcome = null;
   state.hasStarted = true;
@@ -823,15 +986,11 @@ el.musicToggle.addEventListener("click", () => {
 });
 
 el.musicVolume.addEventListener("input", (event) => {
-  state.musicVolume = Number(event.target.value) / 100;
-  updateVolumeUI();
-  updateMusicPlayback();
+  setPendingVolume("music", Number(event.target.value) / 100, { preview: true });
 });
 
 el.sfxVolume.addEventListener("input", (event) => {
-  state.sfxVolume = Number(event.target.value) / 100;
-  applySfxVolume();
-  updateVolumeUI();
+  setPendingVolume("sfx", Number(event.target.value) / 100, { preview: true });
 });
 
 el.settingsToggle.addEventListener("click", () => {
@@ -839,12 +998,17 @@ el.settingsToggle.addEventListener("click", () => {
 });
 
 el.settingsClose.addEventListener("click", () => {
-  setSettingsOpen(false);
+  closeSettingsModal({ discard: true });
+});
+
+el.settingsConfirm.addEventListener("click", async () => {
+  await closeSettingsModal();
+  await applyConfirmedSettings();
 });
 
 el.settingsOverlay.addEventListener("click", (event) => {
   if (event.target === el.settingsOverlay) {
-    setSettingsOpen(false);
+    closeSettingsModal({ discard: true });
   }
 });
 
@@ -856,17 +1020,7 @@ el.settingsOverlay.addEventListener("animationend", (event) => {
 
 el.restart.addEventListener("click", async () => {
   if (state.isAnimating || state.settingsOpen) return;
-
-  clearDiscardTimer();
-  clearLoseTimer();
-  hideFinalRevealOverlay();
-  state.sessionId += 1;
-  state.isAnimating = true;
-  setButtonsEnabled(false);
-  el.cardText.textContent = "Shuffling";
-
-  await playNewGameShuffleAnimation();
-  newGame();
+  await startNewGameSequence();
 });
 
 const unlockMusic = () => {
@@ -879,6 +1033,7 @@ document.addEventListener("pointerdown", unlockMusic, { once: true });
 document.addEventListener("keydown", unlockMusic, { once: true });
 
 function initializePreGameState() {
+  updateModeUI();
   hideCard();
   el.cardText.textContent = "Click New Game to shuffle";
   updateStats();
