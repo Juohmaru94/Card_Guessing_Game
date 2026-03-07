@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Card Guessing Game</title>
+  <title>The Trial</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -14,10 +14,14 @@
   <main class="game-shell">
     <header class="top-bar">
       <div>
-        <h1>Card Guessing Game</h1>
+        <h1>The Trial</h1>
         <p class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
       </div>
       <div class="top-bar-actions">
+        <div id="streak-counter" class="streak-counter" hidden>
+          <span class="label">Safe Cards</span>
+          <span id="streak-score" class="value">0</span>
+        </div>
         <button id="settings-toggle" class="btn icon-btn" type="button" aria-label="Open settings">&#9881;</button>
         <div class="audio-controls">
           <button id="sfx-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Toggle Sound FX">Sound FX: On</button>
@@ -152,6 +156,9 @@
             </div>
           </div>
         </section>
+      </div>
+      <div class="settings-footer">
+        <button id="settings-confirm" class="btn settings-confirm-btn" type="button">Confirm</button>
       </div>
     </section>
   </div>

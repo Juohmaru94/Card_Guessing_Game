@@ -1,4 +1,4 @@
-# Card Guessing Game
+# The Trial
 
 A modern browser-based version of the original card guessing game.
 
