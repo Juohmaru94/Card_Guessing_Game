@@ -24,6 +24,7 @@ const state = {
   hasStarted: false,
   settingsOpen: false,
   settingsClosing: false,
+  settingsCloseResolver: null,
   modeSectionOpen: false,
   cardDesignSectionOpen: false,
   volumeSectionOpen: false,
@@ -52,7 +53,9 @@ const el = {
   cardText: document.getElementById("card-text"),
   shuffleLayer: document.getElementById("shuffle-layer"),
   remaining: document.getElementById("remaining"),
+  remainingLabel: document.getElementById("remaining-label"),
   round: document.getElementById("round"),
+  progressLabel: document.getElementById("progress-label"),
   result: document.getElementById("result"),
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
@@ -64,6 +67,8 @@ const el = {
   heroCard: document.getElementById("hero-card"),
   heroCardRank: document.getElementById("hero-card-rank"),
   heroSuits: [...document.querySelectorAll("[data-hero-suit]")],
+  modeTitle: document.getElementById("mode-title"),
+  modeSubtitle: document.getElementById("mode-subtitle"),
   settingsClose: document.getElementById("settings-close"),
   settingsConfirm: document.getElementById("settings-confirm"),
   modeToggle: document.getElementById("mode-toggle"),
@@ -78,8 +83,6 @@ const el = {
   musicVolumeValue: document.getElementById("music-volume-value"),
   sfxVolume: document.getElementById("sfx-volume"),
   sfxVolumeValue: document.getElementById("sfx-volume-value"),
-  streakCounter: document.getElementById("streak-counter"),
-  streakScore: document.getElementById("streak-score"),
 };
 
 const sounds = {
@@ -210,13 +213,18 @@ function discardSettingsChanges() {
   syncSettingsDraftFromApplied();
 }
 
-function updateStreakCounter() {
+function updateModeUI() {
   const isStreakMode = state.activeMode === "streak";
-  el.streakCounter.hidden = !isStreakMode;
-  el.streakScore.textContent = String(state.streakSafeCount);
+  el.modeTitle.textContent = isStreakMode ? "Streak Mode" : "Classic Mode";
+  el.modeSubtitle.textContent = isStreakMode
+    ? "Survive as many cards as possible by never guessing the exact card value."
+    : "Survive all 52 cards by never guessing the exact card value.";
+
+  el.remainingLabel.textContent = isStreakMode ? "" : "Cards Remaining";
+  el.progressLabel.textContent = isStreakMode ? "Streak" : "Round";
 }
 
-function applyConfirmedSettings() {
+async function applyConfirmedSettings() {
   const previousMode = state.activeMode;
   const modeChanged = state.selectedMode !== previousMode;
 
@@ -228,14 +236,14 @@ function applyConfirmedSettings() {
   updateMusicPlayback();
   applySfxVolume();
   updateVolumeUI();
+  updateModeUI();
 
   if (modeChanged) {
-    newGame({ resetStreak: true });
-  } else if (state.activeMode === "classic") {
-    state.streakSafeCount = 0;
+    await startNewGameSequence({ resetStreak: true });
+    return;
   }
 
-  updateStreakCounter();
+  updateStats();
 }
 
 function setSectionOpen(sectionName, open, options = {}) {
@@ -301,6 +309,29 @@ function finishSettingsCloseAnimation() {
   state.settingsOpen = false;
   el.settingsOverlay.classList.remove("is-closing");
   el.settingsOverlay.hidden = true;
+
+  if (typeof state.settingsCloseResolver === "function") {
+    state.settingsCloseResolver();
+    state.settingsCloseResolver = null;
+  }
+}
+
+function closeSettingsModal(options = {}) {
+  const { discard = false } = options;
+
+  if (!state.settingsOpen) return Promise.resolve();
+  if (discard) {
+    discardSettingsChanges();
+  }
+
+  if (state.settingsClosing) {
+    return Promise.resolve();
+  }
+
+  setSettingsOpen(false);
+  return new Promise((resolve) => {
+    state.settingsCloseResolver = resolve;
+  });
 }
 
 function setResult(message, type = "neutral") {
@@ -669,6 +700,12 @@ function hideCard() {
 }
 
 function updateStats() {
+  if (state.activeMode === "streak") {
+    el.remaining.textContent = "";
+    el.round.textContent = String(state.streakSafeCount);
+    return;
+  }
+
   const remaining = Math.max(52 - state.index, 0);
   el.remaining.textContent = String(remaining);
   el.round.textContent = `${Math.min(state.index + 1, 52)} / 52`;
@@ -792,7 +829,6 @@ function runSafeDiscardAnimation(guessed) {
     state.index += 1;
     if (state.activeMode === "streak") {
       state.streakSafeCount += 1;
-      updateStreakCounter();
     }
     updateStats();
 
@@ -847,6 +883,21 @@ function startNextStreakDeck() {
   playSound("newGame");
 }
 
+async function startNewGameSequence(options = {}) {
+  const { resetStreak = true } = options;
+
+  clearDiscardTimer();
+  clearLoseTimer();
+  hideFinalRevealOverlay();
+  state.sessionId += 1;
+  state.isAnimating = true;
+  setButtonsEnabled(false);
+  el.cardText.textContent = "Shuffling";
+
+  await playNewGameShuffleAnimation();
+  newGame({ resetStreak });
+}
+
 function newGame(options = {}) {
   const { resetStreak = true } = options;
 
@@ -878,8 +929,8 @@ function newGame(options = {}) {
   });
   setButtonsEnabled(true);
   setResult("Make your guess", "neutral");
+  updateModeUI();
   updateStats();
-  updateStreakCounter();
   state.lastOutcome = null;
   state.hasStarted = true;
 }
@@ -941,19 +992,17 @@ el.settingsToggle.addEventListener("click", () => {
 });
 
 el.settingsClose.addEventListener("click", () => {
-  discardSettingsChanges();
-  setSettingsOpen(false);
+  closeSettingsModal({ discard: true });
 });
 
-el.settingsConfirm.addEventListener("click", () => {
-  applyConfirmedSettings();
-  setSettingsOpen(false);
+el.settingsConfirm.addEventListener("click", async () => {
+  await closeSettingsModal();
+  await applyConfirmedSettings();
 });
 
 el.settingsOverlay.addEventListener("click", (event) => {
   if (event.target === el.settingsOverlay) {
-    discardSettingsChanges();
-    setSettingsOpen(false);
+    closeSettingsModal({ discard: true });
   }
 });
 
@@ -965,17 +1014,7 @@ el.settingsOverlay.addEventListener("animationend", (event) => {
 
 el.restart.addEventListener("click", async () => {
   if (state.isAnimating || state.settingsOpen) return;
-
-  clearDiscardTimer();
-  clearLoseTimer();
-  hideFinalRevealOverlay();
-  state.sessionId += 1;
-  state.isAnimating = true;
-  setButtonsEnabled(false);
-  el.cardText.textContent = "Shuffling";
-
-  await playNewGameShuffleAnimation();
-  newGame();
+  await startNewGameSequence();
 });
 
 const unlockMusic = () => {
@@ -988,7 +1027,7 @@ document.addEventListener("pointerdown", unlockMusic, { once: true });
 document.addEventListener("keydown", unlockMusic, { once: true });
 
 function initializePreGameState() {
-  updateStreakCounter();
+  updateModeUI();
   hideCard();
   el.cardText.textContent = "Click New Game to shuffle";
   updateStats();

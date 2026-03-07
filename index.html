@@ -6,22 +6,21 @@
   <title>The Trial</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Chewy&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="background"></div>
   <main class="game-shell">
+    <div class="game-title-wrap">
+      <p class="game-title">The Trial</p>
+    </div>
     <header class="top-bar">
-      <div>
-        <h1>The Trial</h1>
-        <p class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
+      <div class="mode-heading">
+        <h1 id="mode-title">Classic Mode</h1>
+        <p id="mode-subtitle" class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
       </div>
       <div class="top-bar-actions">
-        <div id="streak-counter" class="streak-counter" hidden>
-          <span class="label">Safe Cards</span>
-          <span id="streak-score" class="value">0</span>
-        </div>
         <button id="settings-toggle" class="btn icon-btn" type="button" aria-label="Open settings">&#9881;</button>
         <div class="audio-controls">
           <button id="sfx-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Toggle Sound FX">Sound FX: On</button>
@@ -32,11 +31,11 @@
 
     <section class="status-panel">
       <div class="stat">
-        <span class="label">Cards Remaining</span>
+        <span id="remaining-label" class="label">Cards Remaining</span>
         <span id="remaining" class="value">52</span>
       </div>
       <div class="stat">
-        <span class="label">Round</span>
+        <span id="progress-label" class="label">Round</span>
         <span id="round" class="value">1 / 52</span>
       </div>
       <div class="stat">
