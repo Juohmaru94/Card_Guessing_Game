@@ -21,7 +21,8 @@
         <p id="mode-subtitle" class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
       </div>
       <div class="top-bar-actions">
-        <button id="leaderboard-toggle" class="btn" type="button">Leaderboard</button>
+        <button id="auth-toggle" class="btn auth-btn" type="button">Sign In</button>
+        <button id="leaderboard-toggle" class="btn" type="button">Leaderboards</button>
         <button id="settings-toggle" class="btn icon-btn" type="button" aria-label="Open settings">&#9881;</button>
         <div class="audio-controls">
           <button id="sfx-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Toggle Sound FX">Sound FX: On</button>
@@ -166,24 +167,55 @@
     <section class="settings-modal leaderboard-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
       <div class="settings-header">
         <div>
-          <h2 id="leaderboard-title">Leaderboard</h2>
+          <h2 id="leaderboard-title">Leaderboards</h2>
           <p class="modal-subtitle">Competitive rankings for Classic wins and Streak records.</p>
         </div>
-        <button id="leaderboard-close" class="btn icon-btn" type="button" aria-label="Close leaderboard">&#10005;</button>
+        <button id="leaderboard-close" class="btn icon-btn" type="button" aria-label="Close leaderboards">&#10005;</button>
+      </div>
+      <div class="leaderboard-tabs" role="tablist" aria-label="Leaderboard modes">
+        <button
+          id="leaderboard-tab-classic"
+          class="leaderboard-tab is-active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="leaderboard-panel-classic"
+          data-leaderboard-tab="classic"
+        >
+          Classic
+        </button>
+        <button
+          id="leaderboard-tab-streak"
+          class="leaderboard-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="leaderboard-panel-streak"
+          data-leaderboard-tab="streak"
+        >
+          Streak
+        </button>
+      </div>
+      <div class="leaderboard-meta">
+        <span id="leaderboard-score-label">Total Wins</span>
+        <span id="leaderboard-range-label">Top 30 players</span>
       </div>
       <div class="leaderboard-panels">
-        <section class="leaderboard-panel">
-          <div class="leaderboard-panel-header">
-            <h3>Classic</h3>
-            <span>Total Wins</span>
-          </div>
+        <section
+          id="leaderboard-panel-classic"
+          class="leaderboard-panel is-active"
+          role="tabpanel"
+          aria-labelledby="leaderboard-tab-classic"
+        >
           <ol id="leaderboard-classic-list" class="leaderboard-list"></ol>
         </section>
-        <section class="leaderboard-panel">
-          <div class="leaderboard-panel-header">
-            <h3>Streak</h3>
-            <span>Highest Streak</span>
-          </div>
+        <section
+          id="leaderboard-panel-streak"
+          class="leaderboard-panel"
+          role="tabpanel"
+          aria-labelledby="leaderboard-tab-streak"
+          hidden
+        >
           <ol id="leaderboard-streak-list" class="leaderboard-list"></ol>
         </section>
       </div>
@@ -192,9 +224,18 @@
 
   <div id="identity-overlay" class="settings-overlay identity-overlay" hidden>
     <section class="settings-modal identity-modal" role="dialog" aria-modal="true" aria-labelledby="identity-title">
-      <div class="identity-copy">
-        <h2 id="identity-title">Choose a username</h2>
-        <p id="identity-description" class="modal-subtitle">Set your display name for leaderboards and competitive tracking.</p>
+      <div class="settings-header">
+        <div class="identity-copy">
+          <h2 id="identity-title">Sign in to play</h2>
+          <p id="identity-description" class="modal-subtitle">Choose Google, Apple, or Guest before starting a new game.</p>
+        </div>
+        <button id="identity-close" class="btn icon-btn" type="button" aria-label="Close sign in">&#10005;</button>
+      </div>
+
+      <div id="identity-provider-actions" class="identity-provider-actions">
+        <button id="identity-google" class="btn identity-provider-btn provider-google" type="button">Continue with Google</button>
+        <button id="identity-apple" class="btn identity-provider-btn provider-apple" type="button">Continue with Apple</button>
+        <button id="identity-guest" class="btn identity-provider-btn provider-guest" type="button">Continue as Guest</button>
       </div>
 
       <form id="identity-form" class="identity-form" novalidate>
@@ -203,9 +244,7 @@
         <p id="identity-error" class="identity-error" aria-live="polite"></p>
 
         <div class="identity-actions">
-          <button id="identity-continue" class="btn" type="button" hidden></button>
-          <button id="identity-change" class="btn" type="button" hidden>Change username</button>
-          <button id="identity-cancel-change" class="btn" type="button" hidden>Back</button>
+          <button id="identity-back" class="btn" type="button">Choose another sign-in</button>
           <button id="identity-save" class="btn settings-confirm-btn" type="submit">Save username</button>
         </div>
       </form>

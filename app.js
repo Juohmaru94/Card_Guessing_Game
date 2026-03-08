@@ -26,9 +26,11 @@ const state = {
   settingsClosing: false,
   settingsCloseResolver: null,
   leaderboardOpen: false,
+  leaderboardTab: "classic",
   identityModalOpen: false,
   playerIdentity: null,
-  identityPromptMode: "setup",
+  identityView: "auth",
+  pendingPostAuthAction: null,
   lastSeenTouchAt: 0,
   modeSectionOpen: false,
   cardDesignSectionOpen: false,
@@ -66,11 +68,18 @@ const el = {
   result: document.getElementById("result"),
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
+  authToggle: document.getElementById("auth-toggle"),
   leaderboardToggle: document.getElementById("leaderboard-toggle"),
   leaderboardOverlay: document.getElementById("leaderboard-overlay"),
   leaderboardClose: document.getElementById("leaderboard-close"),
+  leaderboardTabClassic: document.getElementById("leaderboard-tab-classic"),
+  leaderboardTabStreak: document.getElementById("leaderboard-tab-streak"),
+  leaderboardPanelClassic: document.getElementById("leaderboard-panel-classic"),
+  leaderboardPanelStreak: document.getElementById("leaderboard-panel-streak"),
   leaderboardClassicList: document.getElementById("leaderboard-classic-list"),
   leaderboardStreakList: document.getElementById("leaderboard-streak-list"),
+  leaderboardScoreLabel: document.getElementById("leaderboard-score-label"),
+  leaderboardRangeLabel: document.getElementById("leaderboard-range-label"),
   sfxToggle: document.getElementById("sfx-toggle"),
   musicToggle: document.getElementById("music-toggle"),
   settingsToggle: document.getElementById("settings-toggle"),
@@ -96,15 +105,18 @@ const el = {
   sfxVolume: document.getElementById("sfx-volume"),
   sfxVolumeValue: document.getElementById("sfx-volume-value"),
   identityOverlay: document.getElementById("identity-overlay"),
+  identityClose: document.getElementById("identity-close"),
   identityTitle: document.getElementById("identity-title"),
   identityDescription: document.getElementById("identity-description"),
+  identityProviderActions: document.getElementById("identity-provider-actions"),
+  identityGoogle: document.getElementById("identity-google"),
+  identityApple: document.getElementById("identity-apple"),
+  identityGuest: document.getElementById("identity-guest"),
   identityForm: document.getElementById("identity-form"),
   identityLabel: document.getElementById("identity-label"),
   identityUsername: document.getElementById("identity-username"),
   identityError: document.getElementById("identity-error"),
-  identityContinue: document.getElementById("identity-continue"),
-  identityChange: document.getElementById("identity-change"),
-  identityCancelChange: document.getElementById("identity-cancel-change"),
+  identityBack: document.getElementById("identity-back"),
   identitySave: document.getElementById("identity-save"),
 };
 
@@ -133,6 +145,23 @@ Object.values(sounds).forEach((sound) => {
 
 const identityService = window.TheTrialIdentity.createService();
 const leaderboardService = window.TheTrialLeaderboard.createService();
+const leaderboardPageSize = 30;
+const leaderboardModeConfig = {
+  classic: {
+    scoreKey: "classicWins",
+    scoreLabel: "Total Wins",
+    tab: el.leaderboardTabClassic,
+    panel: el.leaderboardPanelClassic,
+    list: el.leaderboardClassicList,
+  },
+  streak: {
+    scoreKey: "bestStreak",
+    scoreLabel: "Highest Streak",
+    tab: el.leaderboardTabStreak,
+    panel: el.leaderboardPanelStreak,
+    list: el.leaderboardStreakList,
+  },
+};
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i -= 1) {
@@ -230,54 +259,84 @@ function setIdentityError(message = "") {
   el.identityError.textContent = message;
 }
 
+function isSignedIn() {
+  return Boolean(state.playerIdentity?.playerId);
+}
+
+function hasCompetitiveProfile() {
+  return Boolean(state.playerIdentity?.username);
+}
+
+function updateAuthButton() {
+  el.authToggle.textContent = isSignedIn() ? "Sign Out" : "Sign In";
+}
+
 function setIdentityModalOpen(open) {
   state.identityModalOpen = open;
   el.identityOverlay.hidden = !open;
   syncModalBodyLock();
 }
 
-function setIdentityPromptMode(mode) {
-  state.identityPromptMode = mode;
-  const currentUsername = state.playerIdentity?.username ?? "";
+function setIdentityControlsDisabled(disabled) {
+  [
+    el.identityClose,
+    el.identityGoogle,
+    el.identityApple,
+    el.identityGuest,
+    el.identityUsername,
+    el.identityBack,
+    el.identitySave,
+  ].forEach((control) => {
+    if (!control) return;
+    control.disabled = disabled;
+  });
+}
 
+function setIdentityView(view) {
+  state.identityView = view;
   setIdentityError("");
-  el.identityLabel.hidden = mode === "return";
-  el.identityUsername.hidden = mode === "return";
-  el.identityUsername.disabled = mode === "return";
-  el.identitySave.hidden = mode === "return";
-  el.identityContinue.hidden = mode !== "return";
-  el.identityChange.hidden = mode !== "return";
-  el.identityCancelChange.hidden = mode !== "change";
 
-  if (mode === "setup") {
-    el.identityTitle.textContent = "Choose a username";
-    el.identityDescription.textContent = "Set your display name for leaderboards and competitive tracking.";
-    el.identitySave.textContent = "Save username";
-    el.identityUsername.value = "";
-    return;
-  }
+  const usernameView = view === "username";
+  el.identityProviderActions.hidden = usernameView;
+  el.identityForm.hidden = !usernameView;
 
-  if (mode === "change") {
-    el.identityTitle.textContent = "Change username";
-    el.identityDescription.textContent = "Update the display name tied to your player identity.";
+  if (usernameView) {
+    const providerLabel = state.playerIdentity?.authProviderLabel ?? "your account";
+    el.identityTitle.textContent = "Choose your username";
+    el.identityDescription.textContent = `Signed in with ${providerLabel}. Pick a unique username to join the competitive leaderboards.`;
     el.identitySave.textContent = "Save username";
-    el.identityUsername.value = currentUsername;
+    el.identityUsername.value = state.playerIdentity?.username ?? "";
     requestAnimationFrame(() => el.identityUsername.focus());
     return;
   }
 
-  el.identityTitle.textContent = "Welcome back";
-  el.identityDescription.textContent = "You were away for more than 2 hours. Continue with your saved identity or choose a new display name.";
-  el.identityContinue.textContent = `Continue as ${currentUsername}`;
+  el.identityTitle.textContent = "Sign in to play";
+  el.identityDescription.textContent = "Choose Google, Apple, or Guest before starting a new game.";
+  requestAnimationFrame(() => el.identityGoogle.focus());
+}
+
+function openIdentityModal(view, pendingAction = null) {
+  if (pendingAction !== null) {
+    state.pendingPostAuthAction = pendingAction;
+  }
+
+  setIdentityView(view);
+  setIdentityModalOpen(true);
+}
+
+function closeIdentityModal() {
+  state.pendingPostAuthAction = null;
+  setIdentityModalOpen(false);
 }
 
 function adoptPlayerIdentity(identity) {
   state.playerIdentity = identity;
   state.lastSeenTouchAt = Date.now();
+  updateAuthButton();
 }
 
 async function syncPlayerProfile() {
-  if (!state.playerIdentity) return;
+  if (!hasCompetitiveProfile()) return;
 
   await leaderboardService.savePlayerProfile({
     playerId: state.playerIdentity.playerId,
@@ -287,21 +346,48 @@ async function syncPlayerProfile() {
 
 function markPlayerSeen(force = false) {
   if (!state.playerIdentity) return;
-  if (state.identityModalOpen && state.identityPromptMode === "return") return;
 
   const now = Date.now();
   if (!force && now - state.lastSeenTouchAt < 60_000) return;
 
-  adoptPlayerIdentity(identityService.touchLastSeen(state.playerIdentity));
+  const updatedIdentity = identityService.touchLastSeen(state.playerIdentity);
+  if (updatedIdentity) {
+    adoptPlayerIdentity(updatedIdentity);
+  }
 }
 
-function createLeaderboardItem(record, scoreKey) {
+function resetGameForLockedState(message = "Sign in to start a new game.") {
+  clearDiscardTimer();
+  clearLoseTimer();
+  hideFinalRevealOverlay();
+  state.sessionId += 1;
+  state.deck = [];
+  state.index = 0;
+  state.gameOver = false;
+  state.isAnimating = false;
+  state.finalRevealActive = false;
+  state.lastOutcome = null;
+  state.streakSafeCount = 0;
+  state.hasStarted = false;
+  hideCard();
+  updateModeUI();
+  updateStats();
+  setButtonsEnabled(false);
+  setResult("", "neutral");
+  el.cardText.textContent = message;
+}
+
+function createLeaderboardItem(record, scoreKey, position) {
   const item = document.createElement("li");
   item.className = "leaderboard-item";
 
   if (record.playerId === state.playerIdentity?.playerId) {
     item.classList.add("is-self");
   }
+
+  const rank = document.createElement("span");
+  rank.className = "leaderboard-position";
+  rank.textContent = `#${position}`;
 
   const name = document.createElement("span");
   name.className = "leaderboard-name";
@@ -311,12 +397,13 @@ function createLeaderboardItem(record, scoreKey) {
   score.className = "leaderboard-score";
   score.textContent = String(record[scoreKey]);
 
-  item.append(name, score);
+  item.append(rank, name, score);
   return item;
 }
 
-function renderLeaderboardList(listElement, records, scoreKey) {
+function renderLeaderboardList(listElement, leaderboardPage, scoreKey) {
   listElement.innerHTML = "";
+  const records = leaderboardPage.items ?? [];
 
   if (!records.length) {
     const emptyItem = document.createElement("li");
@@ -326,19 +413,21 @@ function renderLeaderboardList(listElement, records, scoreKey) {
     return;
   }
 
-  records.forEach((record) => {
-    listElement.appendChild(createLeaderboardItem(record, scoreKey));
+  records.forEach((record, index) => {
+    const position = (leaderboardPage.offset ?? 0) + index + 1;
+    listElement.appendChild(createLeaderboardItem(record, scoreKey, position));
   });
 }
 
 async function refreshLeaderboards() {
-  const leaderboards = await leaderboardService.fetchLeaderboards(10);
+  const leaderboards = await leaderboardService.fetchLeaderboards({ limit: leaderboardPageSize, offset: 0 });
   renderLeaderboardList(el.leaderboardClassicList, leaderboards.classic, "classicWins");
   renderLeaderboardList(el.leaderboardStreakList, leaderboards.streak, "bestStreak");
+  updateLeaderboardTabUI();
 }
 
 async function recordClassicWin() {
-  if (!state.playerIdentity) return;
+  if (!hasCompetitiveProfile()) return;
 
   await leaderboardService.saveClassicWin({
     playerId: state.playerIdentity.playerId,
@@ -351,7 +440,7 @@ async function recordClassicWin() {
 }
 
 async function recordBestStreakIfNeeded(streakValue) {
-  if (!state.playerIdentity || streakValue <= 0) return;
+  if (!hasCompetitiveProfile() || streakValue <= 0) return;
 
   await leaderboardService.saveBestStreak({
     playerId: state.playerIdentity.playerId,
@@ -370,30 +459,73 @@ function setLeaderboardOpen(open) {
   syncModalBodyLock();
 
   if (open) {
+    setLeaderboardTab("classic");
     void refreshLeaderboards();
   }
+}
+
+function setLeaderboardTab(mode) {
+  if (!leaderboardModeConfig[mode]) return;
+
+  state.leaderboardTab = mode;
+  updateLeaderboardTabUI();
+}
+
+function updateLeaderboardTabUI() {
+  Object.entries(leaderboardModeConfig).forEach(([mode, config]) => {
+    const isActive = state.leaderboardTab === mode;
+    config.tab.classList.toggle("is-active", isActive);
+    config.tab.setAttribute("aria-selected", String(isActive));
+    config.panel.hidden = !isActive;
+    config.panel.classList.toggle("is-active", isActive);
+  });
+
+  const activeConfig = leaderboardModeConfig[state.leaderboardTab];
+  if (!activeConfig) return;
+
+  el.leaderboardScoreLabel.textContent = activeConfig.scoreLabel;
+  el.leaderboardRangeLabel.textContent = `Top ${leaderboardPageSize} players`;
 }
 
 function initializeIdentityFlow() {
   const storedIdentity = identityService.getStoredIdentity();
 
   if (!storedIdentity) {
-    setIdentityPromptMode("setup");
-    setIdentityModalOpen(true);
-    requestAnimationFrame(() => el.identityUsername.focus());
+    updateAuthButton();
     return;
   }
 
   adoptPlayerIdentity(storedIdentity);
-
-  if (identityService.shouldPromptForReturn(storedIdentity)) {
-    setIdentityPromptMode("return");
-    setIdentityModalOpen(true);
-    return;
-  }
-
   markPlayerSeen(true);
   void syncPlayerProfile();
+}
+
+function requestSignIn(pendingAction = null) {
+  const view = isSignedIn() && !hasCompetitiveProfile() ? "username" : "auth";
+  openIdentityModal(view, pendingAction);
+}
+
+async function runPendingPostAuthAction() {
+  const pendingAction = state.pendingPostAuthAction;
+  state.pendingPostAuthAction = null;
+
+  if (pendingAction === "start-game") {
+    await startNewGameSequence();
+  }
+}
+
+function ensurePlayerCanStartGame() {
+  if (!isSignedIn()) {
+    requestSignIn("start-game");
+    return false;
+  }
+
+  if (!hasCompetitiveProfile()) {
+    requestSignIn("start-game");
+    return false;
+  }
+
+  return true;
 }
 
 function setPendingVolume(type, value, options = {}) {
@@ -458,7 +590,13 @@ async function applyConfirmedSettings() {
   if (modeChanged) {
     state.streakSafeCount = 0;
     updateStats();
-    await startNewGameSequence({ resetStreak: true });
+    if (hasCompetitiveProfile()) {
+      await startNewGameSequence({ resetStreak: true });
+    } else {
+      resetGameForLockedState(isSignedIn()
+        ? "Choose a unique username to start a new game."
+        : "Sign in to start a new game.");
+    }
     return;
   }
 
@@ -567,7 +705,10 @@ function setButtonsEnabled(enabled) {
 function setGameInputsDisabled(disabled) {
   const controls = [
     el.restart,
+    el.authToggle,
     el.leaderboardToggle,
+    el.leaderboardTabClassic,
+    el.leaderboardTabStreak,
     el.sfxToggle,
     el.musicToggle,
     el.settingsToggle,
@@ -1112,6 +1253,10 @@ function startNextStreakDeck() {
 async function startNewGameSequence(options = {}) {
   const { resetStreak = true } = options;
 
+  if (!ensurePlayerCanStartGame()) {
+    return;
+  }
+
   clearDiscardTimer();
   clearLoseTimer();
   hideFinalRevealOverlay();
@@ -1180,6 +1325,29 @@ function setupSectionToggle(sectionName) {
   });
 }
 
+async function handleProviderSignIn(provider) {
+  setIdentityControlsDisabled(true);
+  setIdentityError("");
+
+  try {
+    const identity = await identityService.signInWithProvider(provider);
+    adoptPlayerIdentity(identity);
+
+    if (hasCompetitiveProfile()) {
+      await syncPlayerProfile();
+      setIdentityModalOpen(false);
+      await runPendingPostAuthAction();
+      return;
+    }
+
+    setIdentityView("username");
+  } catch (error) {
+    setIdentityError(error instanceof Error ? error.message : "Unable to sign in right now.");
+  } finally {
+    setIdentityControlsDisabled(false);
+  }
+}
+
 makeButtons();
 setupModeOptions();
 setupCardDesignOptions();
@@ -1238,6 +1406,25 @@ el.settingsOverlay.addEventListener("animationend", (event) => {
   }
 });
 
+el.authToggle.addEventListener("click", () => {
+  if (state.isAnimating || state.finalRevealActive) return;
+
+  if (isSignedIn()) {
+    identityService.signOut();
+    state.playerIdentity = null;
+    state.pendingPostAuthAction = null;
+    updateAuthButton();
+    setIdentityModalOpen(false);
+    resetGameForLockedState();
+    if (state.leaderboardOpen) {
+      void refreshLeaderboards();
+    }
+    return;
+  }
+
+  requestSignIn();
+});
+
 el.leaderboardToggle.addEventListener("click", () => {
   setLeaderboardOpen(true);
 });
@@ -1252,17 +1439,44 @@ el.leaderboardOverlay.addEventListener("click", (event) => {
   }
 });
 
-el.identityContinue.addEventListener("click", () => {
-  markPlayerSeen(true);
-  setIdentityModalOpen(false);
+el.leaderboardTabClassic.addEventListener("click", () => {
+  setLeaderboardTab("classic");
 });
 
-el.identityChange.addEventListener("click", () => {
-  setIdentityPromptMode("change");
+el.leaderboardTabStreak.addEventListener("click", () => {
+  setLeaderboardTab("streak");
 });
 
-el.identityCancelChange.addEventListener("click", () => {
-  setIdentityPromptMode("return");
+el.identityClose.addEventListener("click", () => {
+  closeIdentityModal();
+});
+
+el.identityOverlay.addEventListener("click", (event) => {
+  if (event.target === el.identityOverlay) {
+    closeIdentityModal();
+  }
+});
+
+el.identityGoogle.addEventListener("click", async () => {
+  await handleProviderSignIn("google");
+});
+
+el.identityApple.addEventListener("click", async () => {
+  await handleProviderSignIn("apple");
+});
+
+el.identityGuest.addEventListener("click", async () => {
+  await handleProviderSignIn("guest");
+});
+
+el.identityBack.addEventListener("click", () => {
+  if (isSignedIn() && !hasCompetitiveProfile()) {
+    identityService.signOut();
+    state.playerIdentity = null;
+    updateAuthButton();
+  }
+
+  setIdentityView("auth");
 });
 
 el.identityForm.addEventListener("submit", async (event) => {
@@ -1274,16 +1488,30 @@ el.identityForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  let identity;
-  if (state.identityPromptMode === "change" && state.playerIdentity) {
-    identity = identityService.updateUsername(state.playerIdentity, validation.normalized);
-  } else {
-    identity = identityService.createIdentity(validation.normalized);
+  if (!state.playerIdentity) {
+    setIdentityError("Sign in before choosing a username.");
+    return;
   }
 
-  adoptPlayerIdentity(identity);
-  await syncPlayerProfile();
-  setIdentityModalOpen(false);
+  setIdentityControlsDisabled(true);
+
+  try {
+    const availability = await identityService.isUsernameAvailable(validation.normalized, state.playerIdentity.playerId);
+    if (!availability.available) {
+      setIdentityError(availability.error || "That username is already taken.");
+      return;
+    }
+
+    const identity = await identityService.completeProfile(state.playerIdentity, availability.normalized);
+    adoptPlayerIdentity(identity);
+    await syncPlayerProfile();
+    setIdentityModalOpen(false);
+    await runPendingPostAuthAction();
+  } catch (error) {
+    setIdentityError(error instanceof Error ? error.message : "Unable to save that username.");
+  } finally {
+    setIdentityControlsDisabled(false);
+  }
 });
 
 el.restart.addEventListener("click", async () => {
@@ -1313,12 +1541,17 @@ window.addEventListener("beforeunload", () => {
 function initializePreGameState() {
   updateModeUI();
   hideCard();
-  el.cardText.textContent = "Click New Game to shuffle";
+  el.cardText.textContent = hasCompetitiveProfile()
+    ? "Click New Game to shuffle"
+    : isSignedIn()
+      ? "Choose a unique username to start a new game"
+      : "Sign in to start a new game";
   updateStats();
   setButtonsEnabled(false);
   setResult("", "neutral");
   state.hasStarted = false;
 }
 
-initializePreGameState();
 initializeIdentityFlow();
+setLeaderboardTab("classic");
+initializePreGameState();

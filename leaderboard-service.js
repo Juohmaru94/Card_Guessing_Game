@@ -1,6 +1,11 @@
 (function leaderboardServiceBootstrap(global) {
   const STORAGE_KEY = "the-trial.leaderboard.v1";
 
+  const modeConfig = {
+    classic: { scoreKey: "classicWins" },
+    streak: { scoreKey: "bestStreak" },
+  };
+
   function readRecords(storage) {
     try {
       const raw = storage.getItem(STORAGE_KEY);
@@ -39,7 +44,7 @@
 
   function sortDescending(records, scoreKey) {
     return Object.values(records)
-      .filter((record) => Number(record[scoreKey]) > 0)
+      .filter((record) => record.username && Number(record[scoreKey]) > 0)
       .sort((left, right) => {
         const scoreDelta = Number(right[scoreKey]) - Number(left[scoreKey]);
         if (scoreDelta !== 0) return scoreDelta;
@@ -49,6 +54,33 @@
 
         return String(left.username).localeCompare(String(right.username));
       });
+  }
+
+  function normalizePageRequest(options = {}) {
+    const limit = Math.max(1, Number(options.limit) || 30);
+    const offset = Math.max(0, Number(options.offset) || 0);
+    return { limit, offset };
+  }
+
+  function buildLeaderboardPage(records, mode, options = {}) {
+    const config = modeConfig[mode];
+    if (!config) {
+      throw new Error("Unsupported leaderboard mode.");
+    }
+
+    const { limit, offset } = normalizePageRequest(options);
+    const sortedRecords = sortDescending(records, config.scoreKey);
+    const items = sortedRecords.slice(offset, offset + limit);
+    const nextOffset = offset + items.length;
+
+    return {
+      items,
+      limit,
+      offset,
+      totalPlayers: sortedRecords.length,
+      hasMore: nextOffset < sortedRecords.length,
+      nextOffset: nextOffset < sortedRecords.length ? nextOffset : null,
+    };
   }
 
   function createService(storage = global.localStorage) {
@@ -63,6 +95,8 @@
       },
 
       async savePlayerProfile({ playerId, username }) {
+        if (!playerId || !username) return null;
+
         const records = readRecords(storage);
         const playerRecord = upsertPlayerRecord(records, { playerId, username });
         records[playerId] = playerRecord;
@@ -71,7 +105,7 @@
       },
 
       async saveBestStreak({ playerId, username, streak }) {
-        if (streak <= 0) return null;
+        if (!playerId || !username || streak <= 0) return null;
 
         const records = readRecords(storage);
         const playerRecord = upsertPlayerRecord(records, { playerId, username });
@@ -81,12 +115,16 @@
         return playerRecord;
       },
 
-      async fetchLeaderboards(limit = 10) {
+      async fetchLeaderboardPage(mode, options = {}) {
         const records = readRecords(storage);
+        return buildLeaderboardPage(records, mode, options);
+      },
 
+      async fetchLeaderboards(options = {}) {
+        const records = readRecords(storage);
         return {
-          classic: sortDescending(records, "classicWins").slice(0, limit),
-          streak: sortDescending(records, "bestStreak").slice(0, limit),
+          classic: buildLeaderboardPage(records, "classic", options),
+          streak: buildLeaderboardPage(records, "streak", options),
         };
       },
     };
