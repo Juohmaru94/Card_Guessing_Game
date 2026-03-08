@@ -268,7 +268,10 @@ function hasCompetitiveProfile() {
 }
 
 function updateAuthButton() {
-  el.authToggle.textContent = isSignedIn() ? "Sign Out" : "Sign In";
+  const signedIn = isSignedIn();
+  el.authToggle.textContent = signedIn ? "Sign Out" : "Sign In";
+  el.authToggle.classList.toggle("signed-in", signedIn);
+  el.authToggle.classList.toggle("signed-out", !signedIn);
 }
 
 function setIdentityModalOpen(open) {
