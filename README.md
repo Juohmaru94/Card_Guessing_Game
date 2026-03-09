@@ -1,28 +1,95 @@
 # The Trial
 
-A modern browser-based version of the original card guessing game.
+A browser card game with a Node backend for sessions, guest accounts, usernames, leaderboards, and server-authoritative game sessions.
 
-## Objective
-Get through an entire 52-card deck without guessing the face value of the current card.
-If your clicked value matches the card rank, you lose immediately.
+## What Changed
 
-## Features
-- Modern glassmorphism UI
-- Clickable on-screen card values (`A, 2-10, J, Q, K`)
-- Card flip animation on each guess
-- Win animation (green glow + particle burst)
-- Lose animation (card shake + particle burst)
-- New Game button to reshuffle and restart
+- The frontend now talks to `/api/v1/*` instead of `localStorage`.
+- Guest login is functional immediately.
+- Google and Apple login use real OAuth redirect flows once you provide credentials.
+- Leaderboards are stored on the server.
+- Game sessions are created and resolved on the server, so leaderboard updates no longer come from raw client-side counter increments.
 
-## Run locally
-From the project root:
+## Local Run
+
+1. Make sure you have Node 24+ and `pnpm`.
+2. If you use Corepack, enable it once:
 
 ```bash
-python3 -m http.server 8000
+corepack enable
 ```
 
-Then open:
+3. Copy `.env.example` to `.env` or set the same environment variables in your shell.
+4. From the project root, install and run with `pnpm`:
 
-- `http://localhost:8000`
+```bash
+pnpm install
+pnpm start
+```
 
-> Note: The legacy CLI prototype is still available in `card_game.py`.
+5. Optional syntax check:
+
+```bash
+pnpm check
+```
+
+6. Open:
+
+- `http://localhost:3000`
+
+The backend serves the static frontend and the API from the same origin in local development.
+
+This repo is a single package, so it does not need `pnpm-workspace.yaml`.
+
+## Required Environment Variables
+
+For local guest-only testing:
+
+- `APP_ORIGIN`
+- `DATABASE_PATH`
+
+For Google sign-in:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
+
+For Apple sign-in:
+
+- `APPLE_CLIENT_ID`
+- `APPLE_TEAM_ID`
+- `APPLE_KEY_ID`
+- `APPLE_PRIVATE_KEY`
+- `APPLE_REDIRECT_URI`
+
+## API Surface
+
+- `GET /api/v1/auth/session`
+- `POST /api/v1/auth/guest`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/google/start-url`
+- `GET /api/v1/auth/apple/start-url`
+- `PUT /api/v1/profile/username`
+- `GET /api/v1/profile/username-availability`
+- `POST /api/v1/profile/touch`
+- `GET /api/v1/leaderboards`
+- `POST /api/v1/games`
+- `POST /api/v1/games/:id/guess`
+
+## Netlify Deployment
+
+Netlify can host the static frontend, but not this long-running Node server directly.
+
+Use one of these deployment shapes:
+
+1. Host the backend on a real Node host such as Render, Railway, Fly.io, or a VM.
+2. Host the frontend on Netlify.
+3. Add a proxy so the frontend still calls `/api/*` on the same site.
+
+A starter proxy file is included as `netlify.example.toml`. Copy it to `netlify.toml` and replace `https://your-backend-host.example.com` with your backend origin.
+
+## Notes
+
+- The SQLite database is created under `data/` at runtime.
+- Apple and Google login will not work until the provider credentials and callback URLs are configured correctly.
+- The legacy CLI prototype is still available in `card_game.py`.

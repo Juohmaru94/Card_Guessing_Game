@@ -16,6 +16,7 @@ const cardDesigns = [
 const state = {
   deck: [],
   index: 0,
+  activeGameId: null,
   gameOver: false,
   isAnimating: false,
   discardTimer: null,
@@ -145,6 +146,7 @@ Object.values(sounds).forEach((sound) => {
 
 const identityService = window.TheTrialIdentity.createService();
 const leaderboardService = window.TheTrialLeaderboard.createService();
+const gameService = window.TheTrialGame.createService();
 const leaderboardPageSize = 30;
 const leaderboardModeConfig = {
   classic: {
@@ -259,6 +261,37 @@ function setIdentityError(message = "") {
   el.identityError.textContent = message;
 }
 
+function consumeAuthRedirectState() {
+  const params = new URLSearchParams(window.location.search);
+  const authError = params.get("authError");
+  const provider = params.get("authProvider");
+
+  if (!authError && !params.has("authStatus")) {
+    return "";
+  }
+
+  params.delete("authError");
+  params.delete("authProvider");
+  params.delete("authStatus");
+  const nextQuery = params.toString();
+  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+  window.history.replaceState({}, "", nextUrl);
+
+  if (!authError) {
+    return "";
+  }
+
+  if (provider === "google") {
+    return "Google sign-in did not complete.";
+  }
+
+  if (provider === "apple") {
+    return "Apple sign-in did not complete.";
+  }
+
+  return "Sign-in did not complete.";
+}
+
 function isSignedIn() {
   return Boolean(state.playerIdentity?.playerId);
 }
@@ -347,13 +380,13 @@ async function syncPlayerProfile() {
   });
 }
 
-function markPlayerSeen(force = false) {
+async function markPlayerSeen(force = false) {
   if (!state.playerIdentity) return;
 
   const now = Date.now();
   if (!force && now - state.lastSeenTouchAt < 60_000) return;
 
-  const updatedIdentity = identityService.touchLastSeen(state.playerIdentity);
+  const updatedIdentity = await identityService.touchLastSeen(state.playerIdentity);
   if (updatedIdentity) {
     adoptPlayerIdentity(updatedIdentity);
   }
@@ -364,6 +397,7 @@ function resetGameForLockedState(message = "Sign in to start a new game.") {
   clearLoseTimer();
   hideFinalRevealOverlay();
   state.sessionId += 1;
+  state.activeGameId = null;
   state.deck = [];
   state.index = 0;
   state.gameOver = false;
@@ -429,33 +463,6 @@ async function refreshLeaderboards() {
   updateLeaderboardTabUI();
 }
 
-async function recordClassicWin() {
-  if (!hasCompetitiveProfile()) return;
-
-  await leaderboardService.saveClassicWin({
-    playerId: state.playerIdentity.playerId,
-    username: state.playerIdentity.username,
-  });
-
-  if (state.leaderboardOpen) {
-    await refreshLeaderboards();
-  }
-}
-
-async function recordBestStreakIfNeeded(streakValue) {
-  if (!hasCompetitiveProfile() || streakValue <= 0) return;
-
-  await leaderboardService.saveBestStreak({
-    playerId: state.playerIdentity.playerId,
-    username: state.playerIdentity.username,
-    streak: streakValue,
-  });
-
-  if (state.leaderboardOpen) {
-    await refreshLeaderboards();
-  }
-}
-
 function setLeaderboardOpen(open) {
   state.leaderboardOpen = open;
   el.leaderboardOverlay.hidden = !open;
@@ -490,17 +497,21 @@ function updateLeaderboardTabUI() {
   el.leaderboardRangeLabel.textContent = `Top ${leaderboardPageSize} players`;
 }
 
-function initializeIdentityFlow() {
-  const storedIdentity = identityService.getStoredIdentity();
+async function initializeIdentityFlow() {
+  try {
+    const storedIdentity = await identityService.getStoredIdentity();
 
-  if (!storedIdentity) {
+    if (!storedIdentity) {
+      updateAuthButton();
+      return;
+    }
+
+    adoptPlayerIdentity(storedIdentity);
+    await markPlayerSeen(true);
+    await syncPlayerProfile();
+  } catch {
     updateAuthButton();
-    return;
   }
-
-  adoptPlayerIdentity(storedIdentity);
-  markPlayerSeen(true);
-  void syncPlayerProfile();
 }
 
 function requestSignIn(pendingAction = null) {
@@ -810,7 +821,7 @@ function runFinalRevealPulses(outcome) {
   }, 700);
 }
 
-async function startFinalRevealSequence({ outcome, cardData, guessed }) {
+async function startFinalRevealSequence({ outcome, cardData, guessed, nextIndex, nextStreakSafeCount }) {
   if (state.finalRevealActive) return;
 
   const revealSessionId = state.sessionId;
@@ -865,7 +876,10 @@ async function startFinalRevealSequence({ outcome, cardData, guessed }) {
     if (revealSessionId !== state.sessionId) return;
 
     if (outcome === "win") {
-      state.index += 1;
+      state.index = typeof nextIndex === "number" ? nextIndex : state.index + 1;
+      if (typeof nextStreakSafeCount === "number") {
+        state.streakSafeCount = nextStreakSafeCount;
+      }
       updateStats();
       win({ skipParticles: true, skipSound: true });
       playOutcomeSound("win");
@@ -1076,6 +1090,19 @@ function updateStats() {
   el.round.textContent = `${Math.min(state.index + 1, 52)} / 52`;
 }
 
+function applyGameSnapshot(snapshot) {
+  if (!snapshot) return;
+  if (snapshot.gameId) {
+    state.activeGameId = snapshot.gameId;
+  }
+  if (typeof snapshot.nextIndex === "number") {
+    state.index = snapshot.nextIndex;
+  }
+  if (typeof snapshot.streakSafeCount === "number") {
+    state.streakSafeCount = snapshot.streakSafeCount;
+  }
+}
+
 function spawnParticles(color) {
   const count = 42;
   for (let i = 0; i < count; i += 1) {
@@ -1159,10 +1186,6 @@ function win(options = {}) {
     playSound("win");
   }
 
-  if (state.activeMode === "classic") {
-    void recordClassicWin();
-  }
-
   state.isAnimating = false;
 }
 
@@ -1174,7 +1197,7 @@ function clearDiscardTimer() {
   }
 }
 
-function runSafeDiscardAnimation(guessed) {
+function runSafeDiscardAnimation(guessed, snapshot) {
   clearDiscardTimer();
   state.isAnimating = true;
   setButtonsEnabled(false);
@@ -1195,62 +1218,62 @@ function runSafeDiscardAnimation(guessed) {
     if (animationSessionId !== state.sessionId) return;
 
     state.discardTimer = null;
-    state.index += 1;
-    if (state.activeMode === "streak") {
-      state.streakSafeCount += 1;
-      void recordBestStreakIfNeeded(state.streakSafeCount);
-    }
+    applyGameSnapshot(snapshot);
     updateStats();
-
-    if (state.index >= 52) {
-      el.card.classList.remove("discarding", "show-next-card");
-      if (state.activeMode === "streak") {
-        startNextStreakDeck();
-        return;
-      }
-      win();
-      return;
-    }
 
     el.card.classList.remove("show-next-card");
     hideCard();
     setResult("Make your guess", "neutral");
     setButtonsEnabled(true);
     state.isAnimating = false;
+    if (snapshot?.deckReset && state.activeMode === "streak") {
+      el.cardText.textContent = "Streak continues. New deck shuffled.";
+      playSound("newGame");
+    }
   }, 560);
 }
 
-function handleGuess(guess) {
+async function handleGuess(guess) {
   if (state.gameOver || state.isAnimating || state.settingsOpen || state.leaderboardOpen || state.identityModalOpen || state.finalRevealActive) return;
+  if (!state.activeGameId) return;
 
-  const card = state.deck[state.index];
+  state.isAnimating = true;
+  setButtonsEnabled(false);
 
-  if (state.activeMode === "classic" && state.index === 51) {
-    const outcome = guess === card.rank ? "loss" : "win";
-    startFinalRevealSequence({ outcome, cardData: card, guessed: guess });
-    return;
+  try {
+    const result = await gameService.submitGuess(state.activeGameId, guess);
+
+    if (result.status !== "safe") {
+      state.activeGameId = null;
+    }
+
+    if (result.finalReveal) {
+      state.isAnimating = false;
+      await startFinalRevealSequence({
+        outcome: result.status === "win" ? "win" : "loss",
+        cardData: result.card,
+        guessed: guess,
+        nextIndex: result.nextIndex,
+        nextStreakSafeCount: result.streakSafeCount,
+      });
+    } else if (result.status === "loss") {
+      applyGameSnapshot(result);
+      lose(result.card, guess);
+      updateStats();
+    } else {
+      state.isAnimating = false;
+      runSafeDiscardAnimation(guess, result);
+    }
+
+    if (state.leaderboardOpen) {
+      void refreshLeaderboards();
+    }
+  } catch (error) {
+    state.isAnimating = false;
+    setButtonsEnabled(true);
+    setResult("Unable to submit guess", "bad");
+    el.cardText.textContent = error instanceof Error ? error.message : "Unable to submit guess.";
   }
-
-  if (guess === card.rank) {
-    lose(card, guess);
-    updateStats();
-    return;
-  }
-
-  runSafeDiscardAnimation(guess);
-}
-
-function startNextStreakDeck() {
-  state.deck = buildDeck();
-  state.index = 0;
-  state.gameOver = false;
-  state.isAnimating = false;
-  hideCard();
-  updateStats();
-  setButtonsEnabled(true);
-  setResult("Make your guess", "neutral");
-  el.cardText.textContent = "Streak continues. New deck shuffled.";
-  playSound("newGame");
 }
 
 async function startNewGameSequence(options = {}) {
@@ -1268,45 +1291,41 @@ async function startNewGameSequence(options = {}) {
   setButtonsEnabled(false);
   el.cardText.textContent = "Shuffling";
 
-  await playNewGameShuffleAnimation();
-  newGame({ resetStreak });
-}
+  try {
+    await playNewGameShuffleAnimation();
+    const game = await gameService.startGame(state.activeMode, resetStreak);
 
-function newGame(options = {}) {
-  const { resetStreak = true } = options;
+    if (state.hasStarted) {
+      playSound("newGame");
+    }
 
-  clearDiscardTimer();
-  clearLoseTimer();
-  state.sessionId += 1;
+    applyGameSnapshot(game);
+    state.gameOver = false;
+    state.isAnimating = false;
+    state.finalRevealActive = false;
+    hideFinalRevealOverlay();
 
-  if (state.hasStarted) {
-    playSound("newGame");
+    if (state.lastOutcome === "lose") {
+      el.card.classList.add("instant-reset");
+    }
+
+    hideCard();
+    requestAnimationFrame(() => {
+      el.card.classList.remove("instant-reset");
+    });
+    setButtonsEnabled(true);
+    setResult("Make your guess", "neutral");
+    updateModeUI();
+    updateStats();
+    state.lastOutcome = null;
+    state.hasStarted = true;
+  } catch (error) {
+    state.activeGameId = null;
+    state.isAnimating = false;
+    setButtonsEnabled(hasCompetitiveProfile());
+    setResult("Unable to start game", "bad");
+    el.cardText.textContent = error instanceof Error ? error.message : "Unable to start a new game.";
   }
-  state.deck = buildDeck();
-  state.index = 0;
-  state.gameOver = false;
-  state.isAnimating = false;
-  state.finalRevealActive = false;
-  if (resetStreak) {
-    state.streakSafeCount = 0;
-  }
-
-  hideFinalRevealOverlay();
-
-  if (state.lastOutcome === "lose") {
-    el.card.classList.add("instant-reset");
-  }
-
-  hideCard();
-  requestAnimationFrame(() => {
-    el.card.classList.remove("instant-reset");
-  });
-  setButtonsEnabled(true);
-  setResult("Make your guess", "neutral");
-  updateModeUI();
-  updateStats();
-  state.lastOutcome = null;
-  state.hasStarted = true;
 }
 
 function setupSectionToggle(sectionName) {
@@ -1334,6 +1353,9 @@ async function handleProviderSignIn(provider) {
 
   try {
     const identity = await identityService.signInWithProvider(provider);
+    if (!identity) {
+      return;
+    }
     adoptPlayerIdentity(identity);
 
     if (hasCompetitiveProfile()) {
@@ -1409,12 +1431,13 @@ el.settingsOverlay.addEventListener("animationend", (event) => {
   }
 });
 
-el.authToggle.addEventListener("click", () => {
+el.authToggle.addEventListener("click", async () => {
   if (state.isAnimating || state.finalRevealActive) return;
 
   if (isSignedIn()) {
-    identityService.signOut();
+    await identityService.signOut();
     state.playerIdentity = null;
+    state.activeGameId = null;
     state.pendingPostAuthAction = null;
     updateAuthButton();
     setIdentityModalOpen(false);
@@ -1472,10 +1495,11 @@ el.identityGuest.addEventListener("click", async () => {
   await handleProviderSignIn("guest");
 });
 
-el.identityBack.addEventListener("click", () => {
+el.identityBack.addEventListener("click", async () => {
   if (isSignedIn() && !hasCompetitiveProfile()) {
-    identityService.signOut();
+    await identityService.signOut();
     state.playerIdentity = null;
+    state.activeGameId = null;
     updateAuthButton();
   }
 
@@ -1530,15 +1554,19 @@ const unlockMusic = () => {
 
 document.addEventListener("pointerdown", unlockMusic, { once: true });
 document.addEventListener("keydown", unlockMusic, { once: true });
-document.addEventListener("pointerdown", () => markPlayerSeen());
-document.addEventListener("keydown", () => markPlayerSeen());
+document.addEventListener("pointerdown", () => {
+  void markPlayerSeen();
+});
+document.addEventListener("keydown", () => {
+  void markPlayerSeen();
+});
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
-    markPlayerSeen(true);
+    void markPlayerSeen(true);
   }
 });
 window.addEventListener("beforeunload", () => {
-  markPlayerSeen(true);
+  void markPlayerSeen(true);
 });
 
 function initializePreGameState() {
@@ -1555,6 +1583,16 @@ function initializePreGameState() {
   state.hasStarted = false;
 }
 
-initializeIdentityFlow();
+async function initializeApp() {
+  const authRedirectMessage = consumeAuthRedirectState();
+  await initializeIdentityFlow();
+  initializePreGameState();
+
+  if (authRedirectMessage) {
+    requestSignIn();
+    setIdentityError(authRedirectMessage);
+  }
+}
+
 setLeaderboardTab("classic");
-initializePreGameState();
+void initializeApp();
