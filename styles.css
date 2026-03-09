@@ -83,19 +83,49 @@ body.modal-open .game-shell {
 }
 
 .top-bar-actions {
-  flex: 0 0 420px;
+  flex: 0 0 500px;
   display: grid;
-  grid-template-columns: minmax(118px, 1fr) minmax(118px, 1fr) 72px;
+  grid-template-columns: 52px minmax(136px, 1fr) minmax(184px, 1.2fr);
   grid-template-areas:
-    "auth board settings"
+    "settings board auth"
     "audio audio audio";
   gap: .55rem;
   align-items: stretch;
 }
 
-.auth-btn {
+.auth-status-group {
   grid-area: auth;
+  display: grid;
+  gap: .18rem;
+  align-content: start;
+}
+
+.auth-status-label,
+.auth-status-name {
+  margin: 0;
+}
+
+.auth-status-label {
+  color: #b8c7f4;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.auth-status-name {
+  min-height: 1.2em;
+  color: #f5f8ff;
+  font-size: .96rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auth-btn {
   min-width: 0;
+  width: 100%;
   color: #f4fbff;
   border-color: rgba(187, 247, 255, 0.48);
   box-shadow: 0 10px 24px rgba(17, 117, 148, 0.28);
@@ -486,9 +516,9 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 .icon-btn {
-  width: 48px;
-  min-width: 48px;
-  height: 48px;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
   padding: 0;
   display: inline-grid;
   place-items: center;
@@ -1154,9 +1184,13 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
     flex: 1 1 auto;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
-      "auth board"
-      "settings settings"
+      "settings board"
+      "auth auth"
       "audio audio";
+  }
+
+  .auth-status-group {
+    gap: .28rem;
   }
 
   .audio-controls {

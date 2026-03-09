@@ -5,10 +5,11 @@ A browser card game with a Node backend for sessions, guest accounts, usernames,
 ## What Changed
 
 - The frontend now talks to `/api/v1/*` instead of `localStorage`.
-- Guest login is functional immediately.
+- Guest login is functional immediately with an automatic username like `guest0001`.
 - Google login uses a real OAuth redirect flow once you provide credentials.
 - Leaderboards are stored on the server.
 - Game sessions are created and resolved on the server, so leaderboard updates no longer come from raw client-side counter increments.
+- Only Google users can choose a custom username.
 
 ## Local Run
 

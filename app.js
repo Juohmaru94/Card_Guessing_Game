@@ -70,6 +70,8 @@ const el = {
   grid: document.getElementById("guess-grid"),
   restart: document.getElementById("restart"),
   authToggle: document.getElementById("auth-toggle"),
+  authStatusLabel: document.getElementById("auth-status-label"),
+  authStatusName: document.getElementById("auth-status-name"),
   leaderboardToggle: document.getElementById("leaderboard-toggle"),
   leaderboardOverlay: document.getElementById("leaderboard-overlay"),
   leaderboardClose: document.getElementById("leaderboard-close"),
@@ -300,6 +302,10 @@ function updateAuthButton() {
   el.authToggle.textContent = signedIn ? "Sign Out" : "Sign In";
   el.authToggle.classList.toggle("signed-in", signedIn);
   el.authToggle.classList.toggle("signed-out", !signedIn);
+  el.authStatusLabel.textContent = "Signed in as";
+  el.authStatusName.textContent = signedIn
+    ? (state.playerIdentity?.username || state.playerIdentity?.authProviderLabel || "Unknown")
+    : "Not signed in";
 }
 
 function setIdentityModalOpen(open) {
@@ -333,7 +339,7 @@ function setIdentityView(view) {
   if (usernameView) {
     const providerLabel = state.playerIdentity?.authProviderLabel ?? "your account";
     el.identityTitle.textContent = "Choose your username";
-    el.identityDescription.textContent = `Signed in with ${providerLabel}. Pick a unique username to join the competitive leaderboards.`;
+    el.identityDescription.textContent = `Signed in with ${providerLabel}. Pick your unique Google username to join the competitive leaderboards.`;
     el.identitySave.textContent = "Save username";
     el.identityUsername.value = state.playerIdentity?.username ?? "";
     requestAnimationFrame(() => el.identityUsername.focus());
@@ -341,7 +347,7 @@ function setIdentityView(view) {
   }
 
   el.identityTitle.textContent = "Sign in to play";
-  el.identityDescription.textContent = "Choose Google or Guest before starting a new game.";
+  el.identityDescription.textContent = "Choose Google to create your own username, or continue as Guest for an automatic guest name.";
   requestAnimationFrame(() => el.identityGoogle.focus());
 }
 
@@ -602,7 +608,7 @@ async function applyConfirmedSettings() {
       await startNewGameSequence({ resetStreak: true });
     } else {
       resetGameForLockedState(isSignedIn()
-        ? "Choose a unique username to start a new game."
+        ? "Choose your Google username to start a new game."
         : "Sign in to start a new game.");
     }
     return;
@@ -1496,7 +1502,7 @@ el.identityBack.addEventListener("click", async () => {
   setIdentityView("auth");
 });
 
-el.identityForm.addEventListener("submit", async (event) => {
+  el.identityForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const validation = identityService.validateUsername(el.identityUsername.value);
@@ -1565,7 +1571,7 @@ function initializePreGameState() {
   el.cardText.textContent = hasCompetitiveProfile()
     ? "Click New Game to shuffle"
     : isSignedIn()
-      ? "Choose a unique username to start a new game"
+      ? "Choose your Google username to start a new game"
       : "Sign in to start a new game";
   updateStats();
   setButtonsEnabled(false);

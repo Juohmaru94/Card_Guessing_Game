@@ -167,6 +167,11 @@ async function handleApi(request, response, url, body) {
       return;
     }
 
+    if (user.auth_provider !== "google") {
+      sendJson(response, 403, { error: "Only Google accounts can choose a custom username." });
+      return;
+    }
+
     sendJson(response, 200, db.checkUsernameAvailability(url.searchParams.get("username"), user.id));
     return;
   }
@@ -174,6 +179,11 @@ async function handleApi(request, response, url, body) {
   if (request.method === "PUT" && url.pathname === "/api/v1/profile/username") {
     if (!user) {
       sendJson(response, 401, { error: "Sign in first." });
+      return;
+    }
+
+    if (user.auth_provider !== "google") {
+      sendJson(response, 403, { error: "Only Google accounts can choose a custom username." });
       return;
     }
 

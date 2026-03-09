@@ -88,6 +88,17 @@ function openDatabase(config) {
       VALUES (?, ?, '', '', NULL, ?, ?, ?)
     `),
     getUserById: db.prepare(`SELECT * FROM users WHERE id = ?`),
+    getGuestUsers: db.prepare(`
+      SELECT *
+      FROM users
+      WHERE auth_provider = 'guest'
+      ORDER BY created_at ASC, id ASC
+    `),
+    nextGuestNumber: db.prepare(`
+      SELECT COALESCE(MAX(CAST(SUBSTR(username_key, 7) AS INTEGER)), 0) AS max_guest_number
+      FROM users
+      WHERE auth_provider = 'guest' AND username_key GLOB 'guest_[0-9][0-9][0-9][0-9]'
+    `),
     getUserBySessionId: db.prepare(`
       SELECT users.*
       FROM sessions
@@ -181,6 +192,50 @@ function openDatabase(config) {
     statements.cleanupExpiredSessions.run(now);
   }
 
+  function formatGuestUsername(sequenceNumber) {
+    return `Guest_${String(sequenceNumber).padStart(4, "0")}`;
+  }
+
+  function applyUsernameToUser(userId, username) {
+    const timestamp = nowIso();
+    statements.updateUsername.run(
+      username,
+      toUsernameKey(username),
+      timestamp,
+      timestamp,
+      timestamp,
+      userId,
+    );
+    return statements.getUserById.get(userId);
+  }
+
+  function assignNextGuestUsername(userId) {
+    while (true) {
+      const nextGuestNumber = Number(statements.nextGuestNumber.get().max_guest_number || 0) + 1;
+      const username = formatGuestUsername(nextGuestNumber);
+
+      try {
+        return applyUsernameToUser(userId, username);
+      } catch (error) {
+        if (!(error instanceof Error) || !String(error.message).includes("UNIQUE")) {
+          throw error;
+        }
+      }
+    }
+  }
+
+  function migrateGuestUsernames() {
+    const guestUsers = statements.getGuestUsers.all();
+    guestUsers.forEach((guestUser, index) => {
+      const temporaryUsername = `guest-temp-${String(index + 1).padStart(4, "0")}-${guestUser.id.slice(-6)}`;
+      applyUsernameToUser(guestUser.id, temporaryUsername);
+    });
+
+    guestUsers.forEach((guestUser, index) => {
+      applyUsernameToUser(guestUser.id, formatGuestUsername(index + 1));
+    });
+  }
+
   function createUser(authProvider) {
     const timestamp = nowIso();
     const userId = randomId("player");
@@ -218,7 +273,8 @@ function openDatabase(config) {
   }
 
   function createGuestUser() {
-    return createUser("guest");
+    const user = createUser("guest");
+    return assignNextGuestUsername(user.id);
   }
 
   function getOrCreateProviderUser(provider, subject, email = "") {
@@ -261,21 +317,21 @@ function openDatabase(config) {
   }
 
   function setUsername(userId, username) {
+    const user = statements.getUserById.get(userId);
+    if (!user) {
+      throw new Error("No signed-in user was found.");
+    }
+
+    if (user.auth_provider !== "google") {
+      throw new Error("Only Google accounts can choose a custom username.");
+    }
+
     const availability = checkUsernameAvailability(username, userId);
     if (!availability.available) {
       throw new Error(availability.error || "That username is already taken.");
     }
 
-    const timestamp = nowIso();
-    statements.updateUsername.run(
-      availability.normalized,
-      toUsernameKey(availability.normalized),
-      timestamp,
-      timestamp,
-      timestamp,
-      userId,
-    );
-    return statements.getUserById.get(userId);
+    return applyUsernameToUser(userId, availability.normalized);
   }
 
   function saveOauthState(record) {
@@ -554,6 +610,8 @@ function openDatabase(config) {
       },
     };
   }
+
+  migrateGuestUsernames();
 
   return {
     createGame,
