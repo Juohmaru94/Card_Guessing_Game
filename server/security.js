@@ -47,6 +47,16 @@ function createSessionCookie(config, sessionId, secureRequest) {
   });
 }
 
+function createGuestDeviceCookie(config, deviceToken, secureRequest) {
+  return serializeCookie(config.guestDeviceCookieName, deviceToken, {
+    httpOnly: true,
+    path: "/",
+    sameSite: "Lax",
+    secure: secureRequest,
+    maxAge: config.guestDeviceTtlDays * 24 * 60 * 60,
+  });
+}
+
 function clearSessionCookie(config, secureRequest) {
   return serializeCookie(config.sessionCookieName, "", {
     httpOnly: true,
@@ -86,6 +96,7 @@ function sessionExpiry(config) {
 
 module.exports = {
   clearSessionCookie,
+  createGuestDeviceCookie,
   createOauthStateRecord,
   createSessionCookie,
   isSecureRequest,

@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
-const { buildDeck, nowIso, randomId, toUsernameKey, validateUsername } = require("./utils");
+const { addMinutes, buildDeck, nowIso, randomId, sha256Base64Url, toUsernameKey, validateUsername } = require("./utils");
 
 function openDatabase(config) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
@@ -80,6 +80,24 @@ function openDatabase(config) {
       game_session_id TEXT REFERENCES game_sessions(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS guest_devices (
+      id TEXT PRIMARY KEY,
+      device_token_hash TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      created_ip TEXT NOT NULL DEFAULT '',
+      last_seen_ip TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS guest_devices_token_hash_unique
+      ON guest_devices(device_token_hash);
+
+    CREATE INDEX IF NOT EXISTS guest_devices_created_ip_created_at_idx
+      ON guest_devices(created_ip, created_at);
   `);
 
   const statements = {
@@ -88,6 +106,7 @@ function openDatabase(config) {
       VALUES (?, ?, '', '', NULL, ?, ?, ?)
     `),
     getUserById: db.prepare(`SELECT * FROM users WHERE id = ?`),
+    getUserByIdAndProvider: db.prepare(`SELECT * FROM users WHERE id = ? AND auth_provider = ? LIMIT 1`),
     getGuestUsers: db.prepare(`
       SELECT *
       FROM users
@@ -184,6 +203,37 @@ function openDatabase(config) {
       INSERT INTO leaderboard_entries (id, user_id, mode, score_value, username_snapshot, game_session_id, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `),
+    findGuestDeviceUser: db.prepare(`
+      SELECT users.*
+      FROM guest_devices
+      JOIN users ON users.id = guest_devices.user_id
+      WHERE guest_devices.device_token_hash = ? AND users.auth_provider = 'guest'
+      LIMIT 1
+    `),
+    insertGuestDevice: db.prepare(`
+      INSERT INTO guest_devices (
+        id,
+        device_token_hash,
+        user_id,
+        created_at,
+        updated_at,
+        last_seen_at,
+        created_ip,
+        last_seen_ip,
+        user_agent
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    touchGuestDevice: db.prepare(`
+      UPDATE guest_devices
+      SET updated_at = ?, last_seen_at = ?, last_seen_ip = ?, user_agent = ?
+      WHERE device_token_hash = ?
+    `),
+    countRecentGuestCreationsByIp: db.prepare(`
+      SELECT COUNT(*) AS total
+      FROM guest_devices
+      WHERE created_ip = ? AND created_at >= ?
+    `),
   };
 
   function cleanup() {
@@ -275,6 +325,98 @@ function openDatabase(config) {
   function createGuestUser() {
     const user = createUser("guest");
     return assignNextGuestUsername(user.id);
+  }
+
+  function hashGuestDeviceToken(deviceToken) {
+    return sha256Base64Url(String(deviceToken || ""));
+  }
+
+  function getGuestUserForDevice(deviceToken) {
+    if (!deviceToken) return null;
+    return statements.findGuestDeviceUser.get(hashGuestDeviceToken(deviceToken)) || null;
+  }
+
+  function rememberGuestDevice(deviceToken, userId, metadata = {}) {
+    const deviceTokenHash = hashGuestDeviceToken(deviceToken);
+    const timestamp = nowIso();
+    statements.insertGuestDevice.run(
+      randomId("guest_device"),
+      deviceTokenHash,
+      userId,
+      timestamp,
+      timestamp,
+      timestamp,
+      metadata.ipAddress || "",
+      metadata.ipAddress || "",
+      metadata.userAgent || "",
+    );
+  }
+
+  function touchGuestDevice(deviceToken, metadata = {}) {
+    if (!deviceToken) return;
+    const timestamp = nowIso();
+    statements.touchGuestDevice.run(
+      timestamp,
+      timestamp,
+      metadata.ipAddress || "",
+      metadata.userAgent || "",
+      hashGuestDeviceToken(deviceToken),
+    );
+  }
+
+  function canCreateGuestFromIp(ipAddress, config) {
+    if (!ipAddress) {
+      return { allowed: true, reason: "" };
+    }
+
+    const cooldownThreshold = addMinutes(new Date(), -config.guestCreationCooldownMinutes).toISOString();
+    const cooldownCount = Number(
+      statements.countRecentGuestCreationsByIp.get(ipAddress, cooldownThreshold).total || 0,
+    );
+    if (cooldownCount > 0) {
+      return {
+        allowed: false,
+        reason: "Please wait a few minutes before creating another guest account on this connection.",
+      };
+    }
+
+    const windowThreshold = addMinutes(new Date(), -config.guestCreationWindowMinutes).toISOString();
+    const recentCount = Number(
+      statements.countRecentGuestCreationsByIp.get(ipAddress, windowThreshold).total || 0,
+    );
+    if (recentCount >= config.guestCreationMaxPerIpWindow) {
+      return {
+        allowed: false,
+        reason: "Too many guest accounts were created recently from this connection. Please try again later or use Google sign-in.",
+      };
+    }
+
+    return { allowed: true, reason: "" };
+  }
+
+  function getOrCreateGuestUser(deviceToken, metadata, config) {
+    const existingGuest = getGuestUserForDevice(deviceToken);
+    if (existingGuest) {
+      touchGuestDevice(deviceToken, metadata);
+      return {
+        user: existingGuest,
+        created: false,
+      };
+    }
+
+    const rateLimit = canCreateGuestFromIp(metadata.ipAddress || "", config);
+    if (!rateLimit.allowed) {
+      const error = new Error(rateLimit.reason);
+      error.code = "GUEST_RATE_LIMITED";
+      throw error;
+    }
+
+    const guestUser = createGuestUser();
+    rememberGuestDevice(deviceToken, guestUser.id, metadata);
+    return {
+      user: guestUser,
+      created: true,
+    };
   }
 
   function getOrCreateProviderUser(provider, subject, email = "") {
@@ -622,6 +764,7 @@ function openDatabase(config) {
     checkUsernameAvailability,
     fetchLeaderboards,
     getOrCreateProviderUser,
+    getOrCreateGuestUser,
     getUserFromSession,
     resolveGameGuess,
     saveOauthState,

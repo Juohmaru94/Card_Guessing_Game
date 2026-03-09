@@ -7,8 +7,16 @@ const { URL } = require("node:url");
 const { config } = require("./config");
 const { openDatabase } = require("./db");
 const { createGoogleAuthorizationUrl, exchangeGoogleCode } = require("./oauth");
-const { buildPublicIdentity, resolveReturnTo } = require("./utils");
-const { clearSessionCookie, createOauthStateRecord, createSessionCookie, isSecureRequest, parseCookies, sessionExpiry } = require("./security");
+const { buildPublicIdentity, randomId, resolveReturnTo } = require("./utils");
+const {
+  clearSessionCookie,
+  createGuestDeviceCookie,
+  createOauthStateRecord,
+  createSessionCookie,
+  isSecureRequest,
+  parseCookies,
+  sessionExpiry,
+} = require("./security");
 
 const db = openDatabase(config);
 
@@ -73,8 +81,18 @@ function requireSameOrigin(request) {
 function getSessionContext(request) {
   const cookies = parseCookies(request.headers.cookie || "");
   const sessionId = cookies[config.sessionCookieName] || "";
+  const guestDeviceToken = cookies[config.guestDeviceCookieName] || "";
   const user = db.getUserFromSession(sessionId);
-  return { sessionId, user };
+  return { sessionId, guestDeviceToken, user };
+}
+
+function getClientIpAddress(request) {
+  const forwardedFor = request.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0].trim();
+  }
+
+  return request.socket.remoteAddress || "";
 }
 
 function setSession(request, user) {
@@ -117,7 +135,7 @@ async function handleApi(request, response, url, body) {
     return;
   }
 
-  const { sessionId, user } = getSessionContext(request);
+  const { sessionId, guestDeviceToken, user } = getSessionContext(request);
 
   if (request.method === "GET" && url.pathname === "/api/v1/health") {
     sendJson(response, 200, { ok: true });
@@ -136,9 +154,34 @@ async function handleApi(request, response, url, body) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/v1/auth/guest") {
-    const guest = db.createGuestUser();
-    const session = setSession(request, guest);
-    sendJson(response, 200, { identity: buildPublicIdentity(session.user) }, { "Set-Cookie": session.header });
+    const secureRequest = isSecureRequest(request);
+    const deviceToken = guestDeviceToken || randomId("guest_device");
+
+    try {
+      const guestResult = user?.auth_provider === "guest"
+        ? { user, created: false }
+        : db.getOrCreateGuestUser(
+          deviceToken,
+          {
+            ipAddress: getClientIpAddress(request),
+            userAgent: request.headers["user-agent"] || "",
+          },
+          config,
+        );
+      const session = setSession(request, guestResult.user);
+      const cookies = [session.header];
+
+      if (!guestDeviceToken) {
+        cookies.push(createGuestDeviceCookie(config, deviceToken, secureRequest));
+      }
+
+      sendJson(response, 200, { identity: buildPublicIdentity(session.user) }, { "Set-Cookie": cookies });
+    } catch (error) {
+      const statusCode = error instanceof Error && error.code === "GUEST_RATE_LIMITED" ? 429 : 400;
+      sendJson(response, statusCode, {
+        error: error instanceof Error ? error.message : "Unable to continue as guest.",
+      });
+    }
     return;
   }
 
@@ -344,3 +387,5 @@ const server = http.createServer(async (request, response) => {
 server.listen(config.port, () => {
   process.stdout.write(`The Trial server listening on ${config.appOrigin}\n`);
 });
+
+module.exports = { server };
