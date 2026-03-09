@@ -1,7 +1,6 @@
 (function identityServiceBootstrap(global) {
   const providerLabels = {
     google: "Google",
-    apple: "Apple",
     guest: "Guest",
   };
 

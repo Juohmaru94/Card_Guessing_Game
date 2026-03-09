@@ -125,72 +125,6 @@ async function exchangeGoogleCode(config, stateRecord, code) {
   };
 }
 
-function buildAppleClientSecret(config) {
-  const now = Math.floor(Date.now() / 1000);
-  const header = {
-    alg: "ES256",
-    kid: config.apple.keyId,
-    typ: "JWT",
-  };
-  const payload = {
-    iss: config.apple.teamId,
-    iat: now,
-    exp: now + 60 * 60 * 24 * 180,
-    aud: "https://appleid.apple.com",
-    sub: config.apple.clientId,
-  };
-
-  const encodedHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const signature = crypto.sign("sha256", Buffer.from(signingInput, "utf8"), {
-    key: config.apple.privateKey,
-    dsaEncoding: "ieee-p1363",
-  });
-
-  return `${signingInput}.${signature.toString("base64url")}`;
-}
-
-async function exchangeAppleCode(config, stateRecord, code) {
-  const body = new URLSearchParams({
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: config.apple.redirectUri,
-    client_id: config.apple.clientId,
-    client_secret: buildAppleClientSecret(config),
-  });
-
-  const tokens = await fetchJson("https://appleid.apple.com/auth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-
-  const payload = await verifyJwtSignature(tokens.id_token, "https://appleid.apple.com/auth/keys");
-  assertTokenTime(payload);
-
-  if (payload.iss !== "https://appleid.apple.com") {
-    throw new Error("Unexpected Apple token issuer.");
-  }
-
-  if (payload.aud !== config.apple.clientId) {
-    throw new Error("Apple token audience does not match the configured client.");
-  }
-
-  if (payload.nonce && payload.nonce !== sha256Base64Url(stateRecord.nonce)) {
-    throw new Error("Apple token nonce did not match the sign-in request.");
-  }
-
-  if (!payload.sub) {
-    throw new Error("Apple token did not include a subject.");
-  }
-
-  return {
-    subject: payload.sub,
-    email: payload.email || "",
-  };
-}
-
 function createGoogleAuthorizationUrl(config, stateRecord) {
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", config.google.clientId);
@@ -205,21 +139,7 @@ function createGoogleAuthorizationUrl(config, stateRecord) {
   return url.toString();
 }
 
-function createAppleAuthorizationUrl(config, stateRecord) {
-  const url = new URL("https://appleid.apple.com/auth/authorize");
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("response_mode", "form_post");
-  url.searchParams.set("client_id", config.apple.clientId);
-  url.searchParams.set("redirect_uri", config.apple.redirectUri);
-  url.searchParams.set("scope", "name email");
-  url.searchParams.set("state", stateRecord.state);
-  url.searchParams.set("nonce", sha256Base64Url(stateRecord.nonce));
-  return url.toString();
-}
-
 module.exports = {
-  createAppleAuthorizationUrl,
   createGoogleAuthorizationUrl,
-  exchangeAppleCode,
   exchangeGoogleCode,
 };

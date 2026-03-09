@@ -486,10 +486,15 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 .icon-btn {
-  min-width: 0;
-  width: 100%;
-  padding-inline: .7rem;
-  font-size: 1.15rem;
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  font-size: 1rem;
+  line-height: 1;
+  aspect-ratio: 1 / 1;
 }
 
 .mute-btn[aria-pressed="true"] {
@@ -850,11 +855,6 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 .provider-google {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(228, 236, 255, 0.92));
   color: #111111;
-}
-
-.provider-apple {
-  background: linear-gradient(145deg, #1a1a1f, #050507);
-  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .provider-guest {

@@ -10,11 +10,6 @@ function parseInteger(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function normalizePrivateKey(value) {
-  if (!value) return "";
-  return String(value).replace(/\\n/g, "\n").trim();
-}
-
 const rootDir = path.resolve(__dirname, "..");
 const dataDir = path.resolve(rootDir, "data");
 
@@ -32,13 +27,6 @@ const config = {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     redirectUri: process.env.GOOGLE_REDIRECT_URI || "",
-  },
-  apple: {
-    clientId: process.env.APPLE_CLIENT_ID || "",
-    teamId: process.env.APPLE_TEAM_ID || "",
-    keyId: process.env.APPLE_KEY_ID || "",
-    privateKey: normalizePrivateKey(process.env.APPLE_PRIVATE_KEY),
-    redirectUri: process.env.APPLE_REDIRECT_URI || "",
   },
 };
 

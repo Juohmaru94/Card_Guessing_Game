@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.6.3",
   "description": "The Trial card game with backend-backed auth, profiles, sessions, and leaderboards.",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node ./server/index.js",
     "check": "node --check server/index.js && node --check server/config.js && node --check server/db.js && node --check server/oauth.js && node --check server/security.js && node --check server/utils.js && node --check game-service.js && node --check identity-service.js && node --check leaderboard-service.js && node --check app.js"
   },
   "engines": {

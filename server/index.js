@@ -1,10 +1,12 @@
+require("dotenv/config");
+
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const { URL } = require("node:url");
 const { config } = require("./config");
 const { openDatabase } = require("./db");
-const { createAppleAuthorizationUrl, createGoogleAuthorizationUrl, exchangeAppleCode, exchangeGoogleCode } = require("./oauth");
+const { createGoogleAuthorizationUrl, exchangeGoogleCode } = require("./oauth");
 const { buildPublicIdentity, resolveReturnTo } = require("./utils");
 const { clearSessionCookie, createOauthStateRecord, createSessionCookie, isSecureRequest, parseCookies, sessionExpiry } = require("./security");
 
@@ -159,19 +161,6 @@ async function handleApi(request, response, url, body) {
     return;
   }
 
-  if (request.method === "GET" && url.pathname === "/api/v1/auth/apple/start-url") {
-    if (!config.apple.clientId || !config.apple.teamId || !config.apple.keyId || !config.apple.privateKey || !config.apple.redirectUri) {
-      sendJson(response, 400, { error: "Apple sign-in is not configured yet." });
-      return;
-    }
-
-    const returnTo = resolveReturnTo(url.searchParams.get("returnTo"), config.appOrigin);
-    const stateRecord = createOauthStateRecord(config, "apple", returnTo);
-    db.saveOauthState(stateRecord);
-    sendJson(response, 200, { redirectUrl: createAppleAuthorizationUrl(config, stateRecord) });
-    return;
-  }
-
   if (request.method === "GET" && url.pathname === "/api/v1/profile/username-availability") {
     if (!user) {
       sendJson(response, 401, { error: "Sign in first." });
@@ -275,26 +264,6 @@ async function handleGoogleCallback(request, response, url) {
   }
 }
 
-async function handleAppleCallback(request, response, url) {
-  const query = request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await parseBody(request);
-  const stateRecord = db.consumeOauthState("apple", query.state);
-  const returnTo = stateRecord?.return_to || `${config.appOrigin}/`;
-
-  if (!stateRecord || !query.code) {
-    redirect(response, authErrorRedirect("apple", returnTo, "apple_sign_in_failed"));
-    return;
-  }
-
-  try {
-    const providerUser = await exchangeAppleCode(config, stateRecord, query.code);
-    const user = db.getOrCreateProviderUser("apple", providerUser.subject, providerUser.email);
-    const session = setSession(request, user);
-    redirect(response, authSuccessRedirect("apple", returnTo), { "Set-Cookie": session.header });
-  } catch {
-    redirect(response, authErrorRedirect("apple", returnTo, "apple_sign_in_failed"));
-  }
-}
-
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -340,11 +309,6 @@ const server = http.createServer(async (request, response) => {
 
     if (url.pathname === "/api/v1/auth/google/callback" && ["GET", "POST"].includes(request.method || "")) {
       await handleGoogleCallback(request, response, url);
-      return;
-    }
-
-    if (url.pathname === "/api/v1/auth/apple/callback" && ["GET", "POST"].includes(request.method || "")) {
-      await handleAppleCallback(request, response, url);
       return;
     }
 

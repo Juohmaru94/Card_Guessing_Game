@@ -61,9 +61,7 @@ function buildPublicIdentity(user) {
       ? "Guest"
       : user.auth_provider === "google"
         ? "Google"
-        : user.auth_provider === "apple"
-          ? "Apple"
-          : "Account",
+        : "Account",
     isGuest: user.auth_provider === "guest",
   };
 }

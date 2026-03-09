@@ -6,7 +6,7 @@ A browser card game with a Node backend for sessions, guest accounts, usernames,
 
 - The frontend now talks to `/api/v1/*` instead of `localStorage`.
 - Guest login is functional immediately.
-- Google and Apple login use real OAuth redirect flows once you provide credentials.
+- Google login uses a real OAuth redirect flow once you provide credentials.
 - Leaderboards are stored on the server.
 - Game sessions are created and resolved on the server, so leaderboard updates no longer come from raw client-side counter increments.
 
@@ -26,6 +26,8 @@ corepack enable
 pnpm install
 pnpm start
 ```
+
+`pnpm start` now loads environment variables from `.env` automatically.
 
 5. Optional syntax check:
 
@@ -54,21 +56,12 @@ For Google sign-in:
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
 
-For Apple sign-in:
-
-- `APPLE_CLIENT_ID`
-- `APPLE_TEAM_ID`
-- `APPLE_KEY_ID`
-- `APPLE_PRIVATE_KEY`
-- `APPLE_REDIRECT_URI`
-
 ## API Surface
 
 - `GET /api/v1/auth/session`
 - `POST /api/v1/auth/guest`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/google/start-url`
-- `GET /api/v1/auth/apple/start-url`
 - `PUT /api/v1/profile/username`
 - `GET /api/v1/profile/username-availability`
 - `POST /api/v1/profile/touch`
@@ -91,5 +84,5 @@ A starter proxy file is included as `netlify.example.toml`. Copy it to `netlify.
 ## Notes
 
 - The SQLite database is created under `data/` at runtime.
-- Apple and Google login will not work until the provider credentials and callback URLs are configured correctly.
+- Google login will not work until the provider credentials and callback URLs are configured correctly.
 - The legacy CLI prototype is still available in `card_game.py`.

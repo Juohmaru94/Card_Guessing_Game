@@ -111,7 +111,6 @@ const el = {
   identityDescription: document.getElementById("identity-description"),
   identityProviderActions: document.getElementById("identity-provider-actions"),
   identityGoogle: document.getElementById("identity-google"),
-  identityApple: document.getElementById("identity-apple"),
   identityGuest: document.getElementById("identity-guest"),
   identityForm: document.getElementById("identity-form"),
   identityLabel: document.getElementById("identity-label"),
@@ -285,10 +284,6 @@ function consumeAuthRedirectState() {
     return "Google sign-in did not complete.";
   }
 
-  if (provider === "apple") {
-    return "Apple sign-in did not complete.";
-  }
-
   return "Sign-in did not complete.";
 }
 
@@ -317,7 +312,6 @@ function setIdentityControlsDisabled(disabled) {
   [
     el.identityClose,
     el.identityGoogle,
-    el.identityApple,
     el.identityGuest,
     el.identityUsername,
     el.identityBack,
@@ -347,7 +341,7 @@ function setIdentityView(view) {
   }
 
   el.identityTitle.textContent = "Sign in to play";
-  el.identityDescription.textContent = "Choose Google, Apple, or Guest before starting a new game.";
+  el.identityDescription.textContent = "Choose Google or Guest before starting a new game.";
   requestAnimationFrame(() => el.identityGoogle.focus());
 }
 
@@ -1485,10 +1479,6 @@ el.identityOverlay.addEventListener("click", (event) => {
 
 el.identityGoogle.addEventListener("click", async () => {
   await handleProviderSignIn("google");
-});
-
-el.identityApple.addEventListener("click", async () => {
-  await handleProviderSignIn("apple");
 });
 
 el.identityGuest.addEventListener("click", async () => {
