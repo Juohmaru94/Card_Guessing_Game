@@ -32,6 +32,10 @@
   <div class="background"></div>
   <main class="game-shell">
     <div class="game-title-wrap">
+      <div class="auth-status-banner">
+        <p id="auth-status-label" class="auth-status-label">Signed in as</p>
+        <p id="auth-status-name" class="auth-status-name">Not signed in</p>
+      </div>
       <p class="game-title">The Trial</p>
     </div>
     <header class="top-bar">
@@ -40,17 +44,17 @@
         <p id="mode-subtitle" class="subtitle">Survive all 52 cards by never guessing the exact card value.</p>
       </div>
       <div class="top-bar-actions">
-        <button id="settings-toggle" class="btn icon-btn" type="button" aria-label="Open settings">&#9881;</button>
-        <button id="leaderboard-toggle" class="btn" type="button">Leaderboards</button>
-        <div class="auth-status-group">
-          <p id="auth-status-label" class="auth-status-label">Signed in as</p>
-          <p id="auth-status-name" class="auth-status-name">Not signed in</p>
-          <button id="auth-toggle" class="btn auth-btn" type="button">Sign In</button>
-        </div>
-        <div class="audio-controls">
-          <button id="sfx-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Toggle Sound FX">Sound FX: On</button>
-          <button id="music-toggle" class="btn mute-btn" type="button" aria-pressed="false" aria-label="Toggle Music">Music: On</button>
-        </div>
+        <button id="auth-toggle" class="btn auth-btn" type="button">Sign In</button>
+        <button id="settings-toggle" class="btn icon-btn top-control-btn" type="button" aria-label="Open settings" title="Settings">&#9881;</button>
+        <button id="leaderboard-toggle" class="btn icon-btn top-control-btn" type="button" aria-label="Open leaderboards" title="Leaderboards">&#127942;</button>
+        <button id="sfx-toggle" class="btn icon-btn top-control-btn media-toggle-btn" type="button" aria-pressed="false" aria-label="Toggle Sound FX" title="Sound FX">
+          <span class="media-toggle-icon" aria-hidden="true">&#128266;</span>
+          <span id="sfx-toggle-state" class="media-toggle-state">On</span>
+        </button>
+        <button id="music-toggle" class="btn icon-btn top-control-btn media-toggle-btn" type="button" aria-pressed="false" aria-label="Toggle Music" title="Music">
+          <span class="media-toggle-icon" aria-hidden="true">&#9835;</span>
+          <span id="music-toggle-state" class="media-toggle-state">On</span>
+        </button>
       </div>
     </header>
 

@@ -50,8 +50,11 @@ body.modal-open .game-shell {
 }
 
 .game-title-wrap {
+  position: relative;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  min-height: 5rem;
   margin-bottom: 1rem;
 }
 
@@ -66,6 +69,16 @@ body.modal-open .game-shell {
   text-shadow:
     0 4px 0 rgba(112, 57, 14, 0.9),
     0 12px 26px rgba(0, 0, 0, 0.4);
+}
+
+.auth-status-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  gap: .18rem;
+  max-width: 220px;
+  text-align: left;
 }
 
 .top-bar {
@@ -83,21 +96,17 @@ body.modal-open .game-shell {
 }
 
 .top-bar-actions {
-  flex: 0 0 500px;
+  flex: 0 0 188px;
+  width: 188px;
   display: grid;
-  grid-template-columns: 52px minmax(136px, 1fr) minmax(184px, 1.2fr);
+  grid-template-columns: repeat(2, 1fr);
   grid-template-areas:
-    "settings board auth"
-    "audio audio audio";
+    "auth auth"
+    "settings board"
+    "sfx music";
   gap: .55rem;
   align-items: stretch;
-}
-
-.auth-status-group {
-  grid-area: auth;
-  display: grid;
-  gap: .18rem;
-  align-content: start;
+  justify-items: stretch;
 }
 
 .auth-status-label,
@@ -124,8 +133,11 @@ body.modal-open .game-shell {
 }
 
 .auth-btn {
+  grid-area: auth;
   min-width: 0;
   width: 100%;
+  min-height: 44px;
+  padding-block: .65rem;
   color: #f4fbff;
   border-color: rgba(187, 247, 255, 0.48);
   box-shadow: 0 10px 24px rgba(17, 117, 148, 0.28);
@@ -140,14 +152,14 @@ body.modal-open .game-shell {
 }
 
 .auth-btn.signed-in {
-  background: linear-gradient(145deg, #ff8585, #fff1f1);
-  color: #4d1111;
-  border-color: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 10px 24px rgba(137, 34, 34, 0.25);
+  background: linear-gradient(145deg, #b2182f, #68111c);
+  color: #fff4f4;
+  border-color: rgba(255, 203, 203, 0.52);
+  box-shadow: 0 10px 24px rgba(96, 12, 28, 0.34);
 }
 
 .auth-btn.signed-in:hover {
-  background: linear-gradient(145deg, #ff9a9a, #ffffff);
+  background: linear-gradient(145deg, #ca1d37, #791421);
 }
 
 #leaderboard-toggle {
@@ -156,14 +168,14 @@ body.modal-open .game-shell {
 
 #settings-toggle {
   grid-area: settings;
-  justify-self: stretch;
 }
 
-.audio-controls {
-  grid-area: audio;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .55rem;
+#sfx-toggle {
+  grid-area: sfx;
+}
+
+#music-toggle {
+  grid-area: music;
 }
 
 h1 { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.3rem); }
@@ -509,26 +521,51 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 
 .controls { margin-top: 1rem; display: flex; justify-content: center; }
 
-.mute-btn {
-  width: 100%;
-  white-space: nowrap;
-  padding-inline: .9rem;
-}
-
 .icon-btn {
-  width: 52px;
-  min-width: 52px;
-  height: 52px;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
   padding: 0;
   display: inline-grid;
   place-items: center;
-  font-size: 1rem;
+  font-size: 1.05rem;
   line-height: 1;
   aspect-ratio: 1 / 1;
 }
 
-.mute-btn[aria-pressed="true"] {
-  opacity: .8;
+.top-control-btn {
+  width: 100%;
+  min-width: 0;
+}
+
+.media-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  padding-inline: .55rem;
+  font-size: .92rem;
+}
+
+.media-toggle-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.media-toggle-state {
+  min-width: 1.7rem;
+  text-align: left;
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+}
+
+#leaderboard-toggle {
+  font-size: 1.15rem;
+}
+
+#music-toggle {
+  font-size: .92rem;
 }
 
 .new-game-btn {
@@ -1171,6 +1208,19 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
 }
 
 @media (max-width: 720px) {
+  .game-title-wrap {
+    min-height: 0;
+    display: grid;
+    gap: .7rem;
+    justify-items: center;
+  }
+
+  .auth-status-banner {
+    position: static;
+    width: 100%;
+    max-width: none;
+  }
+
   .top-bar {
     flex-direction: column;
     align-items: stretch;
@@ -1181,20 +1231,9 @@ h2 { margin: .8rem 0 .7rem; font-size: 1.1rem; }
   }
 
   .top-bar-actions {
-    flex: 1 1 auto;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      "settings board"
-      "auth auth"
-      "audio audio";
-  }
-
-  .auth-status-group {
-    gap: .28rem;
-  }
-
-  .audio-controls {
-    grid-template-columns: 1fr;
+    flex: 0 0 auto;
+    width: 188px;
+    align-self: flex-end;
   }
 
   .leaderboard-meta {

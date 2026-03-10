@@ -84,7 +84,9 @@ const el = {
   leaderboardScoreLabel: document.getElementById("leaderboard-score-label"),
   leaderboardRangeLabel: document.getElementById("leaderboard-range-label"),
   sfxToggle: document.getElementById("sfx-toggle"),
+  sfxToggleState: document.getElementById("sfx-toggle-state"),
   musicToggle: document.getElementById("music-toggle"),
+  musicToggleState: document.getElementById("music-toggle-state"),
   settingsToggle: document.getElementById("settings-toggle"),
   settingsOverlay: document.getElementById("settings-overlay"),
   finalRevealOverlay: document.getElementById("final-reveal-overlay"),
@@ -1028,13 +1030,17 @@ function playSound(name) {
 }
 
 function updateSfxToggleButton() {
-  el.sfxToggle.textContent = state.sfxEnabled ? "Sound FX: On" : "Sound FX: Off";
   el.sfxToggle.setAttribute("aria-pressed", String(state.sfxEnabled));
+  el.sfxToggle.setAttribute("aria-label", state.sfxEnabled ? "Turn sound FX off" : "Turn sound FX on");
+  el.sfxToggle.title = state.sfxEnabled ? "Sound FX On" : "Sound FX Off";
+  el.sfxToggleState.textContent = state.sfxEnabled ? "On" : "Off";
 }
 
 function updateMusicToggleButton() {
-  el.musicToggle.textContent = state.musicEnabled ? "Music: On" : "Music: Off";
   el.musicToggle.setAttribute("aria-pressed", String(state.musicEnabled));
+  el.musicToggle.setAttribute("aria-label", state.musicEnabled ? "Turn music off" : "Turn music on");
+  el.musicToggle.title = state.musicEnabled ? "Music On" : "Music Off";
+  el.musicToggleState.textContent = state.musicEnabled ? "On" : "Off";
 }
 
 function updateVolumeUI() {
